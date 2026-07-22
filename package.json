@@ -4,6 +4,7 @@
   "type": "module",
   "workspaces": ["api", "web"],
   "scripts": {
+    "dev": "bun run --filter '*' --parallel dev",
     "dev:api": "bun run --cwd api dev",
     "dev:web": "bun run --cwd web dev",
     "build:web": "bun run --cwd web build",
