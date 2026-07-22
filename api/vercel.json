@@ -1,0 +1,4 @@
+{
+  "buildCommand": "cd .. && bun install",
+  "installCommand": "echo skip"
+}
