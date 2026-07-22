@@ -7,7 +7,7 @@ function App() {
       <header className="mb-8">
         <h1 className="text-2xl font-semibold">Job Search Copilot</h1>
         <p className="text-muted-foreground text-sm">
-          Tracking applications for the AI Engineer search.
+          Tracking applications for the Senior Full Stack / Software Engineer search.
         </p>
       </header>
 
