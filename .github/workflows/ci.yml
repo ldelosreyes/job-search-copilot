@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck API
+        run: bun run --cwd api typecheck
+
+      - name: Typecheck web
+        run: bun run --cwd web typecheck
+
+      - name: Build web
+        run: bun run --cwd web build
+
+      # Boots the API against a throwaway Postgres service container and
+      # hits /health, so CI catches a broken server start (bad import,
+      # missing env handling, etc.) before it ever reaches Vercel.
+      - name: Smoke test API boot
+        run: |
+          bun run --cwd api src/index.ts &
+          API_PID=$!
+          sleep 2
+          curl -sf http://localhost:3001/health
+          kill $API_PID
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
