@@ -70,7 +70,7 @@ export function ApplicationForm() {
         <CardTitle>New application</CardTitle>
         <CardDescription>Log a role you've applied to.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pb-6">
         <form onSubmit={handleSubmit} className="grid gap-3">
           <div className="grid grid-cols-2 gap-3">
             <Input
