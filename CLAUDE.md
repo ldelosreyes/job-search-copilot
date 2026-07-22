@@ -48,6 +48,21 @@ review between each, not all at once.
 - Never use `git commit --amend` or force-push on shared history without
   asking first.
 
+**Use a feature branch + PR for every code change, not direct commits to
+`main`.** `main` is branch-protected (required status check, PR
+required) — the person can bypass this as repo admin, but chooses not
+to on purpose: this project doubles as a demonstration of team-ready
+git workflow, not just a solo scratch history. For each change: branch
+off `main` (e.g. `feat/short-description`), commit there, self-review
+the diff yourself first (a thorough read-through for bugs, security,
+and consistency — e.g. via a code-reviewing skill if one is available
+and invocable in the current environment) *before* opening the PR
+(catch issues before they're visible in PR history, not after), push,
+open a PR with `gh pr create`, and wait for the `typecheck-and-build`
+CI check to pass. The person reviews and merges the PR themselves — don't
+auto-merge. Docs-only or config-only tweaks follow the same rule unless
+the person explicitly says to just push directly for something trivial.
+
 **Stay in default permission mode for this project** (not
 `acceptEdits`/`bypassPermissions`) unless explicitly told otherwise for a
 specific session — the person wants to see and approve individual edits,
