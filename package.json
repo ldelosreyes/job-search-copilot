@@ -1,0 +1,17 @@
+{
+  "name": "job-search-copilot",
+  "private": true,
+  "type": "module",
+  "workspaces": ["api", "web"],
+  "scripts": {
+    "dev:api": "bun run --cwd api dev",
+    "dev:web": "bun run --cwd web dev",
+    "build:web": "bun run --cwd web build",
+    "typecheck": "bun run --cwd api typecheck && bun run --cwd web typecheck",
+    "lint": "bun run --cwd api lint && bun run --cwd web lint"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "typescript": "^7.0.2"
+  }
+}
