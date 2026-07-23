@@ -51,14 +51,33 @@ Chosen over a generic demo (todo app, JSON viewer) because:
   over — reaching for it too early risks a half-finished feature instead
   of a solid core.
 - **Langfuse** — needs an actual LLM call to trace. Nothing to observe
-  until Phase 2 exists.
+  until Phase 4 exists.
 - **AI/LLM features** (JD parsing, resume-fit scoring via embeddings) —
-  the natural Phase 2, and intentionally not part of the days-long v1.
-  Building it later reuses the same Supabase + pgvector pattern already
-  planned for a separate, larger portfolio project (a RAG assistant),
-  so it isn't wasted scope — it's just sequenced after the thing that
-  actually needed to ship first: proof of current React/TypeScript
-  fluency for a live application already in process.
+  Phase 4, and intentionally not part of the days-long v1. Building it
+  later reuses the same Supabase + pgvector pattern already planned for
+  a separate, larger portfolio project (a RAG assistant), so it isn't
+  wasted scope — it's just sequenced after the thing that actually
+  needed to ship first: proof of current React/TypeScript fluency for a
+  live application already in process.
+
+**Phased roadmap after v1** — each phase is sequenced deliberately after
+the one before it is solid, not built in parallel with it:
+- **Phase 2 — automated tests.** No test suite exists yet; typecheck,
+  lint, and a CI boot smoke-test are the only automated checks today.
+  Planned: Vitest unit tests for the Zod schemas (the discriminated
+  union is exactly the kind of logic that benefits from a regression
+  test), plus a couple of Playwright E2E tests for the core
+  create/update/delete flow, wired into the existing CI workflow.
+- **Phase 3 — auth for the production (personal-use) environment.** The
+  public sandbox deployment intentionally has no auth (seeded fake
+  data, nothing to protect). The separate production environment — the
+  one actually used to track real applications — needs a gate: a
+  lightweight shared-secret bearer-token check (a login prompt storing
+  the token in `localStorage`, validated server-side via Hono's
+  `bearerAuth` middleware), not full user management, since it's a
+  single-user tool.
+- **Phase 4 — LLM/AI integration.** JD parsing, resume-fit scoring via
+  embeddings, described above.
 
 The point of listing what's deferred, not just what's built, is that
 scoping — deciding what *not* to build yet — is itself part of what a
