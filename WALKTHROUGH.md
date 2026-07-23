@@ -325,12 +325,57 @@ the API so the CORS change took effect. Verified with a real
 cross-origin `curl` request and a full Playwright screenshot of the live
 site loading real seeded data through the real deployed API.
 
-## What's still outstanding
+## Connecting Git — and the OAuth login vs. GitHub App distinction
 
-Connecting the Vercel GitHub App (`github.com/settings/installations` →
-Vercel → Configure → add this repo) — a one-time OAuth-style consent that
-only the repo/account owner can grant through GitHub's own UI; no CLI or
-API call can substitute for it. Once done, `vercel git connect` will
-succeed, and pushes to `main` will auto-deploy to production while every
-other branch/PR only ever gets an isolated preview deployment — removing
-the need for manual `vercel --prod` runs entirely.
+Signing up for Vercel via "Continue with GitHub" only completes OAuth
+*login* (proving who you are) — it does **not** install the separate
+"Vercel for GitHub" App that grants actual repo/deployment access, which
+is why that app didn't show up at all under
+`github.com/settings/installations` even after logging in. That
+installation is a one-time, OAuth-style consent grant that only the
+account owner can complete through GitHub's own UI — no CLI command or
+API call can substitute for it (confirmed: `vercel git connect` fails
+outright with a generic "Failed to connect... make sure you have access"
+error until the App is installed for the target repo). Triggering the
+install from a Vercel project's **Settings → Git → Connect Git
+Repository** button (rather than trying to find it standalone on
+GitHub's side first) is what actually surfaces the install/authorize
+flow.
+
+Once installed, `vercel git connect` succeeded immediately for both
+projects, and each project's `productionBranch` was confirmed as `main`
+via a direct API check (not just assumed) — meaning pushes/merges to
+`main` auto-deploy to production, while every other branch/PR only ever
+gets an isolated preview deployment that never touches it.
+
+## The Preview-deployment crash Git integration immediately surfaced
+
+The moment Git was connected, pushing an ordinary docs-only branch
+(unrelated to `api/` at all) automatically triggered a **Preview**
+deployment of the API project — and it crashed instantly with
+`FUNCTION_INVOCATION_FAILED` the moment it was opened in a browser.
+
+Cause: `DATABASE_URL` and `WEB_ORIGIN` had only ever been set for the
+**Production** environment (`vercel env add DATABASE_URL production`),
+never for **Preview** — because until Git was connected, no Preview
+deployments existed at all, so this gap was invisible. `api/src/db/client.ts`
+throws immediately if `DATABASE_URL` is unset, and that throw happens at
+module-import time, before any route (even `/health`) can run — so *every*
+request to the preview crashed the same way, regardless of which route it
+hit.
+
+Fixed by adding both variables to the project's **Preview** environment
+scope too (same values as Production — the sandbox has only one
+database, there's no separate preview-only DB), then using
+`vercel redeploy <url>` to rebuild the specific already-crashed
+deployment so it would pick up the newly-added env vars (env var changes
+never apply retroactively to an already-built deployment).
+
+**One verification wrinkle**: testing the fix via `curl` after the
+redeploy returned a `302` redirect to `vercel.com/sso-api`, which looked
+like it might still be broken — turned out to be Vercel's **Deployment
+Protection**, a separate, correct-by-default security feature that
+requires Vercel account authentication to view *any* preview URL. That's
+why the crash was visible in a real (logged-in) browser but not
+reproducible via an unauthenticated `curl` request — confirmed the actual
+fix by asking for a browser-side recheck instead.
