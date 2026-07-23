@@ -325,13 +325,34 @@ the API so the CORS change took effect. Verified with a real
 cross-origin `curl` request and a full Playwright screenshot of the live
 site loading real seeded data through the real deployed API.
 
+## Connecting Git — and the OAuth login vs. GitHub App distinction
+
+Signing up for Vercel via "Continue with GitHub" only completes OAuth
+*login* (proving who you are) — it does **not** install the separate
+"Vercel for GitHub" App that grants actual repo/deployment access, which
+is why that app didn't show up at all under
+`github.com/settings/installations` even after logging in. That
+installation is a one-time, OAuth-style consent grant that only the
+account owner can complete through GitHub's own UI — no CLI command or
+API call can substitute for it (confirmed: `vercel git connect` fails
+outright with a generic "Failed to connect... make sure you have access"
+error until the App is installed for the target repo). Triggering the
+install from a Vercel project's **Settings → Git → Connect Git
+Repository** button (rather than trying to find it standalone on
+GitHub's side first) is what actually surfaces the install/authorize
+flow.
+
+Once installed, `vercel git connect` succeeded immediately for both
+projects, and each project's `productionBranch` was confirmed as `main`
+via a direct API check (not just assumed) — meaning pushes/merges to
+`main` auto-deploy to production, while every other branch/PR only ever
+gets an isolated preview deployment that never touches it.
+
 ## Connecting Git surfaced two more environment gaps
 
-Once the Vercel GitHub App was installed and both projects connected
-(`vercel git connect`, confirmed `productionBranch: "main"` on both via a
-direct API check), every new branch/PR started getting its own automatic
-preview deployment — which immediately exposed two things that had only
-ever been configured for the Production environment:
+Every new branch/PR now getting its own automatic preview deployment
+immediately exposed two things that had only ever been configured for
+the Production environment:
 
 1. **The API preview crashed outright** (`FUNCTION_INVOCATION_FAILED`) —
    `DATABASE_URL`/`WEB_ORIGIN` had only ever been set for Production, never
