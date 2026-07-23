@@ -1,6 +1,6 @@
-import { sql } from "../src/db/client.ts";
-import { createApplication } from "../src/db/applications-repo.ts";
-import type { CreateApplicationInput } from "../src/schemas/application.ts";
+import { sql } from "../src/db/client";
+import { createApplication } from "../src/db/applications-repo";
+import type { CreateApplicationInput } from "../src/schemas/application";
 
 /**
  * Sandbox seed data — one sample application per status stage, so the

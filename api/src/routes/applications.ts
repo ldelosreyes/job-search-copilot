@@ -4,14 +4,14 @@ import { z } from "zod";
 import {
   createApplicationSchema,
   updateApplicationSchema,
-} from "../schemas/application.ts";
+} from "../schemas/application";
 import {
   listApplications,
   getApplication,
   createApplication,
   updateApplication,
   deleteApplication,
-} from "../db/applications-repo.ts";
+} from "../db/applications-repo";
 
 const idParamSchema = z.object({ id: z.string().uuid() });
 
