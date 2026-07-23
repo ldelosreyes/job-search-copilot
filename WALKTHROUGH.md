@@ -69,6 +69,38 @@ frontend's typed client (below): the type of the actual route definitions
 is shared with the frontend, so route/param/response shapes can never
 silently drift out of sync.
 
+## The auth toggle — `api/src/middleware/auth.ts`
+
+`requireAuth` verifies a Supabase-issued access token
+(`supabase.auth.getUser(token)`, the anon key, not the service-role key —
+this only needs to answer "is this a real, currently valid session," no
+admin operations) on every `/applications/*` request — but only when
+`AUTH_ENABLED=true`. Left unset, it's a no-op, so the sandbox environment
+(which never sets it) behaves exactly as it did before this middleware
+existed. Only the future production environment sets it.
+
+The `authEnabled` check and the Supabase client itself are both
+constructed **once, at module load**, not per-request — and if
+`AUTH_ENABLED=true` but `SUPABASE_URL`/`SUPABASE_ANON_KEY` are missing,
+it throws immediately at startup, matching `db/client.ts`'s existing
+fail-fast pattern for `DATABASE_URL`. This wasn't the first version:
+the initial implementation checked for those env vars *inside* the
+middleware, lazily, on first use — which meant a misconfigured deployment
+would only fail on the first real request (as a confusing `500`), not at
+startup. Caught by testing a garbage token locally: expected a `401`,
+got a `500`, traced it to the lazily-thrown error, moved the check to
+module load instead.
+
+**A second issue, caught by self-review before this was ever pushed**:
+the toggle itself (`process.env.AUTH_ENABLED === "true"`) is an exact
+string match — meaning `AUTH_ENABLED=1` or `AUTH_ENABLED=True` (both
+plausible typos when actually deploying production) would silently
+evaluate to `false`, running with *no auth at all* and no indication
+anything was wrong. Fixed by logging the resolved state unconditionally
+at startup (`Auth: ENABLED` / `Auth: DISABLED`) — cheap, and turns a
+silent misconfiguration into something visible in deploy logs the moment
+it happens.
+
 ## Two entrypoints, one app
 
 - **`api/src/index.ts`**'s default export runs directly under Bun locally

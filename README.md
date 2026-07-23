@@ -65,6 +65,26 @@ bun run dev:web   # http://localhost:5173, proxies /api -> :3001
 
 `bun run typecheck` and `bun run lint` at the repo root run both packages.
 
+## Auth (toggleable, off by default)
+
+The public sandbox deployment intentionally runs with **no auth at all**
+— it's a demo with seeded fake data, nothing to protect. The API's
+`requireAuth` middleware (`api/src/middleware/auth.ts`) verifies a
+Supabase-issued access token on every `/applications/*` request, but only
+when `AUTH_ENABLED=true`; left unset, it's a no-op and behavior is
+unchanged from before this middleware existed.
+
+Only the production (personal-use) environment sets `AUTH_ENABLED=true`,
+along with `SUPABASE_URL` and `SUPABASE_ANON_KEY` (Project Settings →
+API — the anon/publishable key, not the service-role key; the middleware
+only verifies a user's own token, no admin operations). The API's auth
+state is logged at startup (`Auth: ENABLED`/`Auth: DISABLED`), so a
+misconfigured deployment is visible in the logs rather than silently
+running open.
+
+**Planned next**: a matching frontend toggle (a login screen shown only
+when enabled) — not yet built as of this API-side middleware.
+
 ## Deploying
 
 This is a Bun workspace with **two independent Vercel projects** — a static
