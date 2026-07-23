@@ -65,6 +65,20 @@ bun run dev:web   # http://localhost:5173, proxies /api -> :3001
 
 `bun run typecheck` and `bun run lint` at the repo root run both packages.
 
+## Testing
+
+```bash
+bun run --cwd api test       # unit tests (bun:test) — Zod schema validation
+bun run --cwd web test:e2e   # Playwright E2E — full CRUD flow via a real browser
+```
+
+E2E tests expect both dev servers already running (`bun run dev:api` +
+`bun run dev:web`) — they don't manage server lifecycle themselves, the
+same way you'd test manually. CI runs unit tests inside the existing
+`typecheck-and-build` job, and E2E as its own parallel `e2e` job (its
+own throwaway Postgres, migrated fresh and discarded at the end) —
+see `.github/workflows/ci.yml`.
+
 ## Auth — two independent, mutually exclusive toggles
 
 **`requireAuth` (`api/src/middleware/auth.ts`)** — real per-user auth for

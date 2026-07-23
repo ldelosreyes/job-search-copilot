@@ -485,3 +485,57 @@ feature branch — deploying straight to the production sandbox slot from
 uncommitted code, exactly what connecting Git was meant to prevent. Caught
 immediately, flagged transparently, and the corrected (hardened) version
 was verified via a proper preview deployment instead.
+
+## Phase 2: automated tests, split across two parallel CI jobs
+
+With the sandbox live and gated, the next gap was that every change so
+far had only ever been verified manually. Two independent decisions
+shaped this: **`bun test` over Vitest** for unit tests (already
+Bun-native, zero extra dependency, and the schema tests don't need a DOM
+or component-rendering environment), and a **separate `e2e` job running
+in parallel** with the existing `typecheck-and-build` job rather than
+more steps bolted onto it — E2E needs a browser plus two live dev
+servers, a meaningfully heavier and slower path than the existing
+typecheck/lint/build/smoke-test loop, so keeping them as separate jobs
+means a slow E2E run never blocks the fast feedback loop, and a flaky
+E2E run doesn't fail the whole pipeline's other checks.
+
+The unit tests (discriminated-union field stripping, invalid-stage
+rejection) landed first, in a separate PR. This is the Playwright E2E
+half: three tests exercising the full create → update-stage → delete
+flow through a real browser against real dev servers.
+
+**Two real Playwright bugs, not authoring mistakes to gloss over**:
+1. `getByText("Applied")` matched *two* elements — the status badge and
+   the stage `<select>`'s own `<option value="applied">applied</option>`
+   — because Playwright's `getByText` is case-insensitive substring
+   matching by default. Fixed by scoping to `[data-slot="badge"]`
+   directly (the shadcn Badge component's own DOM attribute) instead of
+   searching by text.
+2. `getByRole("spinbutton", { name: "Round" })` timed out even though
+   the app worked correctly (confirmed interactively via the Playwright
+   MCP tool first). Its own failure report showed the accessibility-tree
+   snapshot rendering spinbuttons *without* their placeholder-derived
+   accessible names in that render pass — an indirect, apparently
+   fragile computation. Fixed by reading the `placeholder` attribute
+   directly via `getByPlaceholder("Round")` instead of relying on
+   computed accessible names.
+
+**A safety practice worth keeping as a standing rule**: local `api/.env`
+points at the live, publicly-shown sandbox database. Running
+destructive CRUD tests against it would pollute real demo data with
+`E2E Create Co ...` rows. Every local verification pass instead used a
+throwaway Docker Postgres container, migrated and discarded per run —
+never the sandbox's real `DATABASE_URL`.
+
+**Self-review before opening the PR caught two CI-robustness gaps**, not
+functional bugs: the dev-server wait-loop (`for i in $(seq 1 30); do
+curl ... && break; sleep 1; done`) fell through silently after 30 failed
+attempts instead of failing the step, meaning a server that never booted
+would surface as a confusing Playwright connection error rather than a
+clear "API never became healthy" message — and neither backgrounded dev
+server's output was captured anywhere, so a boot-time crash would leave
+no trace in the CI logs. Fixed by explicitly failing the step (with the
+server's log tailed inline) when the health check never succeeds, and
+uploading both servers' logs as a build artifact on any job failure —
+mirroring the existing Playwright-report-on-failure artifact.
