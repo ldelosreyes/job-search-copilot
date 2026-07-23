@@ -101,6 +101,44 @@ at startup (`Auth: ENABLED` / `Auth: DISABLED`) — cheap, and turns a
 silent misconfiguration into something visible in deploy logs the moment
 it happens.
 
+## A second, deliberately different gate — `api/src/middleware/api-token.ts`
+
+`requireAuth` (above) is real per-user auth, meant for a future
+*production* environment with an actual login screen. But the *sandbox*
+has a different requirement entirely: the frontend should stay fully
+public with no login screen at all, while direct/casual access to the
+raw API should still be blocked. Neither "real auth" nor "no auth"
+fits that — so `requireApiToken` is a third, separate option: a static
+shared-secret Bearer token, reusing Hono's own built-in `bearerAuth`
+middleware rather than hand-rolling a string comparison, toggled by
+`API_TOKEN` (unset = no-op, same pattern as `AUTH_ENABLED`). The
+frontend sends the matching secret automatically as `VITE_API_TOKEN`,
+baked into its public build — meaning this is honestly obscurity
+against casual/naive access, not real security against someone
+determined enough to extract the token from the shipped JS bundle, an
+accepted tradeoff since the sandbox only ever holds fake seeded data.
+
+**Caught by self-review before this was pushed**: nothing stopped
+`API_TOKEN` and `AUTH_ENABLED=true` from being set simultaneously — and
+since both middlewares read the same `Authorization` header but check
+it in incompatible ways (a static-string match vs. a valid-JWT check),
+no single token could ever satisfy both at once. The result wouldn't be
+a security bypass (it fails closed — everything 401s), but it would be
+a deeply confusing "why is nothing working" debugging session with no
+clue why. Fixed with an explicit startup check that throws a clear error
+if both are ever configured together, rather than leaving that
+discovery to a future debugging session.
+
+**A testing mistake worth recording**: the first attempt to verify the
+frontend actually sends `VITE_API_TOKEN` used `curl` directly against
+Vite's dev-proxy path — which proved nothing, since that bypasses the
+frontend's JavaScript entirely (the `Authorization` header is only ever
+attached by `api-client.ts`'s code running in an actual browser, not by
+whatever hits the proxy URL directly). Caught immediately and redone
+properly with a real Playwright browser session instead: a matching
+token loads real data, a mismatched one shows the app's existing
+graceful error state rather than a crash.
+
 ## Two entrypoints, one app
 
 - **`api/src/index.ts`**'s default export runs directly under Bun locally
