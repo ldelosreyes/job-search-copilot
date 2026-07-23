@@ -71,11 +71,15 @@ the one before it is solid, not built in parallel with it:
 - **Phase 3 — auth for the production (personal-use) environment.** The
   public sandbox deployment intentionally has no auth (seeded fake
   data, nothing to protect). The separate production environment — the
-  one actually used to track real applications — needs a gate: a
-  lightweight shared-secret bearer-token check (a login prompt storing
-  the token in `localStorage`, validated server-side via Hono's
-  `bearerAuth` middleware), not full user management, since it's a
-  single-user tool.
+  one actually used to track real applications — needs a real login
+  screen backed by Supabase Auth (email/password, real sessions), not
+  a shared-secret token. Still single-user: one account, not user
+  management. **Multi-user support and an admin dashboard were
+  considered and explicitly dropped** — this project's scope is a
+  personal tool proving fluency for a specific job search, not a
+  multi-tenant product, and that kind of scope has no natural finish
+  line — the same reasoning behind deferring Trigger.dev and Langfuse
+  above.
 - **Phase 4 — LLM/AI integration.** JD parsing, resume-fit scoring via
   embeddings, described above.
 
