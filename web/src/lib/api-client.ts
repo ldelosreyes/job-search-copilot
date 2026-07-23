@@ -10,6 +10,8 @@ import type { AppType } from "@job-search-copilot/api/src/index.ts";
  *
  * In dev, Vite's proxy (vite.config.ts) forwards /api/* to the Hono
  * server on :3001, so we call same-origin paths and avoid CORS
- * entirely during local development.
+ * entirely during local development. Once deployed, there is no dev
+ * proxy — VITE_API_URL must point at the deployed API's origin, and
+ * the API's CORS config (WEB_ORIGIN) must allow this site's origin.
  */
-export const apiClient = hc<AppType>("/api");
+export const apiClient = hc<AppType>(import.meta.env.VITE_API_URL ?? "/api");
