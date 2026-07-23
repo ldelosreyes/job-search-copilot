@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
+    "seed": "bun run scripts/seed.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint"
   },
