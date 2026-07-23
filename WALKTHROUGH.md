@@ -348,34 +348,70 @@ via a direct API check (not just assumed) — meaning pushes/merges to
 `main` auto-deploy to production, while every other branch/PR only ever
 gets an isolated preview deployment that never touches it.
 
-## The Preview-deployment crash Git integration immediately surfaced
+## Connecting Git surfaced two more environment gaps
 
-The moment Git was connected, pushing an ordinary docs-only branch
-(unrelated to `api/` at all) automatically triggered a **Preview**
-deployment of the API project — and it crashed instantly with
-`FUNCTION_INVOCATION_FAILED` the moment it was opened in a browser.
+Every new branch/PR now getting its own automatic preview deployment
+immediately exposed two things that had only ever been configured for
+the Production environment:
 
-Cause: `DATABASE_URL` and `WEB_ORIGIN` had only ever been set for the
-**Production** environment (`vercel env add DATABASE_URL production`),
-never for **Preview** — because until Git was connected, no Preview
-deployments existed at all, so this gap was invisible. `api/src/db/client.ts`
-throws immediately if `DATABASE_URL` is unset, and that throw happens at
-module-import time, before any route (even `/health`) can run — so *every*
-request to the preview crashed the same way, regardless of which route it
-hit.
+1. **The API preview crashed outright** (`FUNCTION_INVOCATION_FAILED`) —
+   `DATABASE_URL`/`WEB_ORIGIN` had only ever been set for Production, never
+   Preview, so `client.ts` threw at import time on every request. Fixed by
+   adding both to the Preview environment scope too, then using
+   `vercel redeploy <url>` to rebuild the already-crashed deployment (env
+   var changes never apply retroactively to an existing build).
+2. **The web preview loaded but couldn't fetch data** — same root cause,
+   `VITE_API_URL` was Production-only, so the preview build fell back to
+   `/api`, which 404s on a static deployment with no dev-time proxy. Fixed
+   the same way: added `VITE_API_URL` to web's Preview scope, redeployed.
 
-Fixed by adding both variables to the project's **Preview** environment
-scope too (same values as Production — the sandbox has only one
-database, there's no separate preview-only DB), then using
-`vercel redeploy <url>` to rebuild the specific already-crashed
-deployment so it would pick up the newly-added env vars (env var changes
-never apply retroactively to an already-built deployment).
+**A verification wrinkle worth knowing about**: testing either fix via
+`curl` returns a `302` redirect to `vercel.com/sso-api` — Vercel's
+**Deployment Protection**, which requires account authentication to view
+*any* preview URL. This is a separate, correct-by-default security
+feature, not a bug — it's why a logged-in browser could see the original
+crash but an unauthenticated `curl` couldn't reproduce it directly.
 
-**One verification wrinkle**: testing the fix via `curl` after the
-redeploy returned a `302` redirect to `vercel.com/sso-api`, which looked
-like it might still be broken — turned out to be Vercel's **Deployment
-Protection**, a separate, correct-by-default security feature that
-requires Vercel account authentication to view *any* preview URL. That's
-why the crash was visible in a real (logged-in) browser but not
-reproducible via an unauthenticated `curl` request — confirmed the actual
-fix by asking for a browser-side recheck instead.
+## The CORS preview-origin bug, and a real security review catch
+
+Fixing the web preview's data-fetching (above) surfaced a *third* gap:
+once `VITE_API_URL` was correct, the browser now got a CORS error instead
+— the API's `cors()` config only ever allowed one exact-match `WEB_ORIGIN`
+string (the stable production URL), but every preview deployment gets its
+own unique origin (e.g. `job-search-copilot-web-sandbox-<hash>-<team>.vercel.app`).
+No single fixed string can cover an unbounded, ever-changing set of
+preview origins.
+
+First fix: switched from an exact string to Hono's function-based `cors()`
+origin option, matching any origin starting with
+`job-search-copilot-web-sandbox` and ending in `.vercel.app`.
+
+**An automated security review then correctly flagged this as a CORS
+allowlist bypass** — the pattern only checked a *prefix*, so anyone could
+register an entirely unrelated Vercel project (e.g.
+`job-search-copilot-web-sandbox-phishing`, under a different account) and
+its own auto-assigned domain would still match. Worth being honest about
+severity, though: since this API has no authentication anywhere and CORS
+only ever restricts *browser* reads (never a direct `curl`/server-side
+request), the bypass wouldn't have unlocked anything beyond what was
+already fully public — but it was still a real logical flaw in the regex,
+and cheap to fix properly rather than rationalize away.
+
+Hardened fix: anchor the pattern on the actual Vercel **team slug**
+(`ldelosreyes-se`) rather than just the project-name prefix — team slugs
+are globally unique and assigned by Vercel based on real account
+ownership, so an unrelated project under a different account can't
+produce a domain ending in this team's slug no matter what it's named.
+Verified with a battery of regex unit tests covering every legitimate URL
+shape (production, preview-hash, branch-alias) plus the exact
+domain-squatting attempt the review described, all producing the
+expected allow/reject result — since Deployment Protection (above) blocks
+a live `curl` round-trip against preview URLs, isolated testing of the
+regex logic itself was the practical way to verify it.
+
+**A process mistake worth recording, not hiding**: the *first* version of
+this fix was verified by running `vercel --prod` directly from the
+feature branch — deploying straight to the production sandbox slot from
+uncommitted code, exactly what connecting Git was meant to prevent. Caught
+immediately, flagged transparently, and the corrected (hardened) version
+was verified via a proper preview deployment instead.
