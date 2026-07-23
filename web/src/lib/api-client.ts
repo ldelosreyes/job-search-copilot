@@ -13,5 +13,15 @@ import type { AppType } from "@job-search-copilot/api/src/index.ts";
  * entirely during local development. Once deployed, there is no dev
  * proxy — VITE_API_URL must point at the deployed API's origin, and
  * the API's CORS config (WEB_ORIGIN) must allow this site's origin.
+ *
+ * VITE_API_TOKEN mirrors the API's requireApiToken middleware (see
+ * api/src/middleware/api-token.ts) — a static shared-secret gate for
+ * the sandbox environment, not real per-user auth. Sent unconditionally;
+ * when unset, this header is simply absent, which is exactly what the
+ * middleware expects when API_TOKEN isn't configured server-side either.
  */
-export const apiClient = hc<AppType>(import.meta.env.VITE_API_URL ?? "/api");
+export const apiClient = hc<AppType>(import.meta.env.VITE_API_URL ?? "/api", {
+  headers: import.meta.env.VITE_API_TOKEN
+    ? { Authorization: `Bearer ${import.meta.env.VITE_API_TOKEN}` }
+    : {},
+});

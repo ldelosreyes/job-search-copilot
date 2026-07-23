@@ -65,25 +65,33 @@ bun run dev:web   # http://localhost:5173, proxies /api -> :3001
 
 `bun run typecheck` and `bun run lint` at the repo root run both packages.
 
-## Auth (toggleable, off by default)
+## Auth — two independent, mutually exclusive toggles
 
-The public sandbox deployment intentionally runs with **no auth at all**
-— it's a demo with seeded fake data, nothing to protect. The API's
-`requireAuth` middleware (`api/src/middleware/auth.ts`) verifies a
+**`requireAuth` (`api/src/middleware/auth.ts`)** — real per-user auth for
+the future production (personal-use) environment. Verifies a
 Supabase-issued access token on every `/applications/*` request, but only
-when `AUTH_ENABLED=true`; left unset, it's a no-op and behavior is
-unchanged from before this middleware existed.
+when `AUTH_ENABLED=true`; left unset, it's a no-op. When enabled, also
+requires `SUPABASE_URL` and `SUPABASE_ANON_KEY` (Project Settings → API
+— the anon/publishable key, not the service-role key). A matching
+frontend login screen is planned but not yet built.
 
-Only the production (personal-use) environment sets `AUTH_ENABLED=true`,
-along with `SUPABASE_URL` and `SUPABASE_ANON_KEY` (Project Settings →
-API — the anon/publishable key, not the service-role key; the middleware
-only verifies a user's own token, no admin operations). The API's auth
-state is logged at startup (`Auth: ENABLED`/`Auth: DISABLED`), so a
+**`requireApiToken` (`api/src/middleware/api-token.ts`)** — a much
+lighter, static shared-secret Bearer token gate for the *sandbox*
+specifically. The sandbox's frontend stays fully public with no login
+screen at all, but this blocks casual/direct access to the raw API.
+Toggled by `API_TOKEN` (unset = no-op); the frontend sends the matching
+`VITE_API_TOKEN` automatically. Since the token ships in the public JS
+bundle, this is obscurity against naive/direct access, not real security
+— an accepted tradeoff given the sandbox only ever holds fake seeded
+data.
+
+**These two are mutually exclusive, not layers to combine** — setting
+both `API_TOKEN` and `AUTH_ENABLED=true` together fails fast at startup
+with a clear error, since no single token could satisfy both checks at
+once. Each gate's resolved state is logged unconditionally at startup
+(`Auth: ENABLED`/`DISABLED`, `API token gate: ENABLED`/`DISABLED`), so a
 misconfigured deployment is visible in the logs rather than silently
-running open.
-
-**Planned next**: a matching frontend toggle (a login screen shown only
-when enabled) — not yet built as of this API-side middleware.
+wrong.
 
 ## Deploying
 
