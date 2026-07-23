@@ -325,12 +325,72 @@ the API so the CORS change took effect. Verified with a real
 cross-origin `curl` request and a full Playwright screenshot of the live
 site loading real seeded data through the real deployed API.
 
-## What's still outstanding
+## Connecting Git surfaced two more environment gaps
 
-Connecting the Vercel GitHub App (`github.com/settings/installations` →
-Vercel → Configure → add this repo) — a one-time OAuth-style consent that
-only the repo/account owner can grant through GitHub's own UI; no CLI or
-API call can substitute for it. Once done, `vercel git connect` will
-succeed, and pushes to `main` will auto-deploy to production while every
-other branch/PR only ever gets an isolated preview deployment — removing
-the need for manual `vercel --prod` runs entirely.
+Once the Vercel GitHub App was installed and both projects connected
+(`vercel git connect`, confirmed `productionBranch: "main"` on both via a
+direct API check), every new branch/PR started getting its own automatic
+preview deployment — which immediately exposed two things that had only
+ever been configured for the Production environment:
+
+1. **The API preview crashed outright** (`FUNCTION_INVOCATION_FAILED`) —
+   `DATABASE_URL`/`WEB_ORIGIN` had only ever been set for Production, never
+   Preview, so `client.ts` threw at import time on every request. Fixed by
+   adding both to the Preview environment scope too, then using
+   `vercel redeploy <url>` to rebuild the already-crashed deployment (env
+   var changes never apply retroactively to an existing build).
+2. **The web preview loaded but couldn't fetch data** — same root cause,
+   `VITE_API_URL` was Production-only, so the preview build fell back to
+   `/api`, which 404s on a static deployment with no dev-time proxy. Fixed
+   the same way: added `VITE_API_URL` to web's Preview scope, redeployed.
+
+**A verification wrinkle worth knowing about**: testing either fix via
+`curl` returns a `302` redirect to `vercel.com/sso-api` — Vercel's
+**Deployment Protection**, which requires account authentication to view
+*any* preview URL. This is a separate, correct-by-default security
+feature, not a bug — it's why a logged-in browser could see the original
+crash but an unauthenticated `curl` couldn't reproduce it directly.
+
+## The CORS preview-origin bug, and a real security review catch
+
+Fixing the web preview's data-fetching (above) surfaced a *third* gap:
+once `VITE_API_URL` was correct, the browser now got a CORS error instead
+— the API's `cors()` config only ever allowed one exact-match `WEB_ORIGIN`
+string (the stable production URL), but every preview deployment gets its
+own unique origin (e.g. `job-search-copilot-web-sandbox-<hash>-<team>.vercel.app`).
+No single fixed string can cover an unbounded, ever-changing set of
+preview origins.
+
+First fix: switched from an exact string to Hono's function-based `cors()`
+origin option, matching any origin starting with
+`job-search-copilot-web-sandbox` and ending in `.vercel.app`.
+
+**An automated security review then correctly flagged this as a CORS
+allowlist bypass** — the pattern only checked a *prefix*, so anyone could
+register an entirely unrelated Vercel project (e.g.
+`job-search-copilot-web-sandbox-phishing`, under a different account) and
+its own auto-assigned domain would still match. Worth being honest about
+severity, though: since this API has no authentication anywhere and CORS
+only ever restricts *browser* reads (never a direct `curl`/server-side
+request), the bypass wouldn't have unlocked anything beyond what was
+already fully public — but it was still a real logical flaw in the regex,
+and cheap to fix properly rather than rationalize away.
+
+Hardened fix: anchor the pattern on the actual Vercel **team slug**
+(`ldelosreyes-se`) rather than just the project-name prefix — team slugs
+are globally unique and assigned by Vercel based on real account
+ownership, so an unrelated project under a different account can't
+produce a domain ending in this team's slug no matter what it's named.
+Verified with a battery of regex unit tests covering every legitimate URL
+shape (production, preview-hash, branch-alias) plus the exact
+domain-squatting attempt the review described, all producing the
+expected allow/reject result — since Deployment Protection (above) blocks
+a live `curl` round-trip against preview URLs, isolated testing of the
+regex logic itself was the practical way to verify it.
+
+**A process mistake worth recording, not hiding**: the *first* version of
+this fix was verified by running `vercel --prod` directly from the
+feature branch — deploying straight to the production sandbox slot from
+uncommitted code, exactly what connecting Git was meant to prevent. Caught
+immediately, flagged transparently, and the corrected (hardened) version
+was verified via a proper preview deployment instead.

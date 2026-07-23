@@ -76,20 +76,32 @@ monorepo, so each package is deployed separately:
 1. New Vercel project, **Root Directory: `web`**.
 2. Framework preset: Vite. Build command/output are already set in
    `web/vercel.json`.
-3. Environment variable `VITE_API_URL` pointing at the deployed API project's
-   URL (update `api-client.ts` to read this in production instead of the
-   `/api` dev-proxy path).
+3. Environment variable `VITE_API_URL` pointing at the deployed API
+   project's URL — `api-client.ts` reads this at build time, falling
+   back to the `/api` dev-proxy path when unset.
 
 **API (`api/`):**
 1. New Vercel project, **Root Directory: `api`**. With this root, Vercel's
    zero-config detection finds `api/index.ts` (the `hono/vercel` adapter)
-   as a serverless function automatically.
+   as a serverless function automatically. `api/vercel.json` also sets
+   `bunVersion: "1.x"` — the deployed function runs on Vercel's Bun
+   runtime rather than Node.js, since the code relies on Bun-style module
+   resolution (see `WALKTHROUGH.md` for why this matters).
 2. Environment variable `DATABASE_URL` set to the Supabase connection
    string (use the pooled "Transaction mode" URI, not the direct
    connection, since serverless functions open/close connections per
    invocation).
 3. Environment variable `WEB_ORIGIN` set to the deployed frontend's URL,
-   for CORS.
+   for CORS. The API's CORS check also accepts any origin in the web
+   project's own Vercel preview-domain family (see `api/src/index.ts`),
+   since every preview deployment/branch gets a unique origin that a
+   single exact-match value can't cover.
+
+**If using Vercel's Git integration** (auto-deploy on push), set every
+environment variable above for **both** the Production and Preview
+environments, not just Production — a Preview deployment with no
+`DATABASE_URL` crashes on its very first request, since nothing about a
+missing env var is specific to one environment or the other.
 
 Both projects should point at the same GitHub repo; Vercel's per-project
 Root Directory setting is what keeps them from colliding.

@@ -4,12 +4,15 @@ import { logger } from "hono/logger";
 import { applicationsRoute } from "./routes/applications";
 
 // Vercel gives every preview deployment and branch alias its own unique
-// origin (e.g. job-search-copilot-web-sandbox-<hash>-<team>.vercel.app),
-// so a single exact-match WEB_ORIGIN can't cover them all. Instead, allow
-// WEB_ORIGIN exactly (local dev, explicit override) plus anything in the
-// web-sandbox project's own Vercel domain family — not arbitrary origins.
+// origin (e.g. job-search-copilot-web-sandbox-<hash>-ldelosreyes-se.vercel.app),
+// so a single exact-match WEB_ORIGIN can't cover them all. Anchored on the
+// actual Vercel team slug (ldelosreyes-se), not just the project name
+// prefix — team slugs are globally unique and assigned by Vercel based on
+// real account ownership, so an unrelated project (e.g. someone else
+// registering "job-search-copilot-web-sandbox-phishing" under their own
+// account) can't produce a domain ending in our team's slug.
 const sandboxWebOriginPattern =
-  /^https:\/\/job-search-copilot-web-sandbox(-[\w-]+)?\.vercel\.app$/;
+  /^https:\/\/job-search-copilot-web-sandbox(\.vercel\.app|-[\w-]+-ldelosreyes-se\.vercel\.app)$/;
 
 const app = new Hono()
   .use(logger())
