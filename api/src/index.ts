@@ -3,12 +3,25 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { applicationsRoute } from "./routes/applications";
 
+// Vercel gives every preview deployment and branch alias its own unique
+// origin (e.g. job-search-copilot-web-sandbox-<hash>-<team>.vercel.app),
+// so a single exact-match WEB_ORIGIN can't cover them all. Instead, allow
+// WEB_ORIGIN exactly (local dev, explicit override) plus anything in the
+// web-sandbox project's own Vercel domain family — not arbitrary origins.
+const sandboxWebOriginPattern =
+  /^https:\/\/job-search-copilot-web-sandbox(-[\w-]+)?\.vercel\.app$/;
+
 const app = new Hono()
   .use(logger())
   .use(
     "/*",
     cors({
-      origin: process.env.WEB_ORIGIN ?? "http://localhost:5173",
+      origin: (origin) => {
+        const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:5173";
+        if (origin === webOrigin) return origin;
+        if (origin && sandboxWebOriginPattern.test(origin)) return origin;
+        return undefined;
+      },
     }),
   )
   .get("/health", (c) => c.json({ status: "ok" }))
