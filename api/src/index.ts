@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { applicationsRoute } from "./routes/applications";
+import { requireAuth } from "./middleware/auth";
 
 // Vercel gives every preview deployment and branch alias its own unique
 // origin (e.g. job-search-copilot-web-sandbox-<hash>-ldelosreyes-se.vercel.app),
@@ -28,6 +29,7 @@ const app = new Hono()
     }),
   )
   .get("/health", (c) => c.json({ status: "ok" }))
+  .use("/applications/*", requireAuth)
   .route("/applications", applicationsRoute);
 
 // Exporting the app's type lets the web package use Hono's RPC client
