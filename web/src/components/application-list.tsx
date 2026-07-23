@@ -64,7 +64,7 @@ export function ApplicationList() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="grid gap-2">
+            <CardContent className="grid gap-2 pb-6">
               <StatusBadge status={app.status} />
               <StageEditor id={app.id} status={app.status} />
               {app.notes && <p className="text-muted-foreground text-sm">{app.notes}</p>}
