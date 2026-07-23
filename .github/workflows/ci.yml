@@ -22,6 +22,9 @@ jobs:
       - name: Typecheck API
         run: bun run --cwd api typecheck
 
+      - name: Unit tests (API schemas)
+        run: bun run --cwd api test
+
       - name: Typecheck web
         run: bun run --cwd web typecheck
 
