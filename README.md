@@ -5,6 +5,10 @@ AI Engineer role — built to demonstrate current React 19 + TypeScript depth
 and a stack overlap with a specific job description (React 19, TanStack,
 Tailwind v4, shadcn/ui, Hono on Bun, Postgres/Supabase, Vercel).
 
+**[Live demo](https://job-search-copilot-web-sandbox.vercel.app)** — seeded
+with fake sample applications, reset nightly. No login; this sandbox
+deployment intentionally has no auth (see the Auth section below for why).
+
 See [`PLANNING.md`](./PLANNING.md) for the scoping decisions made before any
 code was written, and why several stack items commonly seen together
 (Trigger.dev, Langfuse, TanStack Router) were deliberately left out of v1.
@@ -147,6 +151,12 @@ missing env var is specific to one environment or the other.
 
 Both projects should point at the same GitHub repo; Vercel's per-project
 Root Directory setting is what keeps them from colliding.
+
+**Sandbox data reset**: `.github/workflows/reset-sandbox.yml` runs
+nightly (plus manual `workflow_dispatch`), re-running `api/scripts/seed.ts`
+against the sandbox database via a `sandbox`-scoped GitHub Environment
+secret — so the public demo always shows the same curated set of sample
+applications regardless of what visitors add, edit, or delete.
 
 ## What's deliberately not in v1
 

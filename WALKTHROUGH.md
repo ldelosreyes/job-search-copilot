@@ -539,3 +539,30 @@ no trace in the CI logs. Fixed by explicitly failing the step (with the
 server's log tailed inline) when the health check never succeeds, and
 uploading both servers' logs as a build artifact on any job failure —
 mirroring the existing Playwright-report-on-failure artifact.
+
+## Checking demoability, once the tests landed
+
+With the test suite green and merged, actually loading the live sandbox
+in a browser (rather than trusting it was still fine) surfaced two real
+gaps the plan had missed:
+
+1. **Stray manual-test data was mixed into the curated seed story** — an
+   old "GTM Engineer @ BAC" row from earlier ad-hoc testing sat alongside
+   the intentional Anthropic/Vercel/Stripe/Linear/Notion/Supabase set.
+   Fixed by re-running `api/scripts/seed.ts` against the sandbox, which
+   clears the table before reinserting the curated rows.
+2. **The nightly reset workflow was designed earlier but never actually
+   built** — `api/scripts/seed.ts` existed and worked, but no scheduled
+   job called it, so the sandbox had no way to recover from visitors
+   creating/deleting applications. Added `.github/workflows/
+   reset-sandbox.yml` (`schedule` + `workflow_dispatch`), reading
+   `DATABASE_URL` from a new `sandbox`-scoped GitHub Environment secret
+   rather than a plain repo secret — the environment itself was created
+   via the API, but the secret's actual value is meant to be set
+   directly (`gh secret set DATABASE_URL --env sandbox`, piped straight
+   from `api/.env`) rather than ever appearing in the conversation.
+
+Also fixed while checking the live site: the browser tab still showed
+Vite's default `<title>web</title>`, and the README never actually
+linked the deployed sandbox URL anywhere — a `git clone` away from a demo
+that already existed but wasn't discoverable.
