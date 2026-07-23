@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "seed": "bun run scripts/seed.ts",
+    "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint"
   },
