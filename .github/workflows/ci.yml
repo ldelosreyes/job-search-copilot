@@ -40,6 +40,10 @@ jobs:
           kill $API_PID
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          # Only need to be *set* for llm-client.ts's fail-fast check to
+          # pass — nothing in this smoke test calls Cerebras/Groq.
+          CEREBRAS_API_KEY: ci-placeholder
+          GROQ_API_KEY: ci-placeholder
     services:
       postgres:
         image: postgres:16
