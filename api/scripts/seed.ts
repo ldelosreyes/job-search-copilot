@@ -97,6 +97,11 @@ async function main() {
     console.log("Clearing applications table...");
     await sql`delete from applications`;
 
+    // No seeded dummy resume — starts empty after every reset, same as
+    // the spec's "nothing works until a resume is uploaded" design.
+    console.log("Clearing resume table...");
+    await sql`delete from resume`;
+
     console.log(`Seeding ${seedApplications.length} sample applications...`);
     for (const input of seedApplications) {
       const result = await createApplication(input);
