@@ -25,6 +25,9 @@ jobs:
       - name: Unit tests (API schemas)
         run: bun run --cwd api test
 
+      - name: Unit tests (web components)
+        run: bun run --cwd web test
+
   # Own throwaway Postgres, migrated fresh, entirely disposed of at the
   # end of the job — never runs against the sandbox's real database.
   e2e:
