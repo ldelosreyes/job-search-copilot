@@ -55,7 +55,7 @@ describe("callChatModel", () => {
       return jsonResponse(200, chatCompletion({ ok: true, provider: "cerebras" }));
     };
 
-    const result = await callChatModel(messages, schema);
+    const result = await callChatModel(messages, schema, 500);
 
     expect(result).toEqual({ ok: true, provider: "cerebras" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -70,7 +70,7 @@ describe("callChatModel", () => {
       return jsonResponse(200, chatCompletion({ ok: true, provider: "groq" }));
     };
 
-    const result = await callChatModel(messages, schema);
+    const result = await callChatModel(messages, schema, 500);
 
     expect(result).toEqual({ ok: true, provider: "groq" });
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -79,14 +79,14 @@ describe("callChatModel", () => {
   test("throws when both Cerebras and Groq fail", async () => {
     handler = async () => jsonResponse(500, { error: { message: "down" } });
 
-    await expect(callChatModel(messages, schema)).rejects.toThrow();
+    await expect(callChatModel(messages, schema, 500)).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   test("does not fall back on a non-retryable error (e.g. bad request)", async () => {
     handler = async () => jsonResponse(400, { error: { message: "bad request" } });
 
-    await expect(callChatModel(messages, schema)).rejects.toThrow();
+    await expect(callChatModel(messages, schema, 500)).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
