@@ -46,8 +46,10 @@ jobs:
         working-directory: web
         run: bunx playwright install --with-deps chromium
 
-      - name: Apply database migration
-        run: psql "$DATABASE_URL" -f api/supabase/migrations/0001_applications.sql
+      - name: Apply database migrations
+        run: |
+          psql "$DATABASE_URL" -f api/supabase/migrations/0001_applications.sql
+          psql "$DATABASE_URL" -f api/supabase/migrations/0002_resume.sql
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
@@ -80,6 +82,10 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
           WEB_ORIGIN: http://localhost:5173
+          # Only need to be *set* for llm-client.ts's fail-fast check to
+          # pass — the e2e suite doesn't exercise the AI endpoints yet.
+          CEREBRAS_API_KEY: ci-placeholder
+          GROQ_API_KEY: ci-placeholder
 
       - name: Run Playwright E2E tests
         run: bun run --cwd web test:e2e

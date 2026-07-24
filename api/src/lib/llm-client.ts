@@ -76,10 +76,12 @@ async function complete(
   provider: Provider,
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
   schema: JsonSchemaSpec,
+  maxTokens: number,
 ): Promise<unknown> {
   const response = await provider.client.chat.completions.create({
     model: provider.model,
     messages,
+    max_tokens: maxTokens,
     response_format: {
       type: "json_schema",
       json_schema: { name: schema.name, strict: true, schema: schema.schema },
@@ -93,12 +95,19 @@ async function complete(
   return JSON.parse(content);
 }
 
+/**
+ * maxTokens bounds worst-case per-call cost/latency regardless of input
+ * (see Guardrails in the Phase 4 spec) — callers size this to what
+ * their own response shape actually needs (a few short fields vs. a
+ * per-application rationale array), not a single global constant.
+ */
 export async function callChatModel(
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
   schema: JsonSchemaSpec,
+  maxTokens: number,
 ): Promise<unknown> {
   try {
-    return await complete(cerebras, messages, schema);
+    return await complete(cerebras, messages, schema, maxTokens);
   } catch (error) {
     if (!isRetryable(error)) {
       throw error;
@@ -106,6 +115,6 @@ export async function callChatModel(
     console.warn(
       `Cerebras call failed (${error instanceof Error ? error.message : String(error)}), falling back to Groq.`,
     );
-    return complete(groq, messages, schema);
+    return complete(groq, messages, schema, maxTokens);
   }
 }
