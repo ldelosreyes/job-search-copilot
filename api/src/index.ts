@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { applicationsRoute } from "./routes/applications";
+import { resumeRoute } from "./routes/resume";
 import { requireAuth } from "./middleware/auth";
 import { requireApiToken } from "./middleware/api-token";
 
@@ -45,7 +46,10 @@ const app = new Hono()
   .get("/health", (c) => c.json({ status: "ok" }))
   .use("/applications/*", requireApiToken)
   .use("/applications/*", requireAuth)
-  .route("/applications", applicationsRoute);
+  .route("/applications", applicationsRoute)
+  .use("/resume/*", requireApiToken)
+  .use("/resume/*", requireAuth)
+  .route("/resume", resumeRoute);
 
 // Exporting the app's type lets the web package use Hono's RPC client
 // (hc<AppType>) for fully type-checked fetch calls — request bodies,
