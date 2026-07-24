@@ -13,12 +13,19 @@ means cost and abuse are first-class design constraints, not
 afterthoughts. Two decisions came out of discussing that directly with
 the project owner:
 
-- **Gemini `gemini-2.5-flash-lite` on the free tier**, prioritizing
-  zero direct cost over provider choice. Accepted tradeoff: free-tier
-  usage (via AI Studio API keys, not paid Vertex AI) may be used by
-  Google to improve their products — acceptable here because the
-  sandbox never handles the project owner's real personal data (see
-  Resume handling below).
+- **Cerebras `gpt-oss-120b` on the free tier, with Groq (same model)
+  as fallback**, not Gemini as originally scoped. Gemini's real free
+  tier for `gemini-2.5-flash-lite` turned out to be **20 requests/day**
+  ([per an actively-maintained free-LLM-API tracker](https://github.com/cheahjs/free-llm-api-resources)) —
+  workable for a private demo, not for a public sandbox link. Cerebras
+  offers 14,400 requests/day and Groq 1,000/day, both with no phone
+  verification and no data-training opt-in requirement, at the cost of
+  a less-famous model brand than Gemini. Both providers host the exact
+  same `gpt-oss-120b` weights and expose an **OpenAI-compatible**
+  `/v1/chat/completions` endpoint, so primary/fallback is a config
+  swap (`baseURL`/key), not two different code paths or two different
+  models producing inconsistent-quality output depending on which one
+  answers. See Architecture for the fallback call shape.
 - **No embeddings/pgvector**, despite `PLANNING.md`'s original mention.
   There is only ever one active resume compared against one JD per
   request — vector similarity search only pays off when searching
@@ -31,9 +38,9 @@ the project owner:
 - A visitor can paste a JD and a resume (PDF/DOCX) into the public
   sandbox and get two genuinely useful AI results: parsed JD fields
   (pre-filling the application form) and a fit score with rationale.
-- Stay within Gemini's free tier under normal demo traffic, with
-  guardrails that fail gracefully rather than silently or expensively
-  if that tier is ever exceeded or abused.
+- Stay within Cerebras/Groq's free tiers under normal demo traffic,
+  with guardrails that fail gracefully rather than silently or
+  expensively if either tier is ever exceeded or abused.
 - No new abstraction beyond what two simple, independent AI actions
   need — this is not an agentic system, not a RAG pipeline, just two
   bounded LLM calls with structured output.
@@ -59,7 +66,7 @@ Two independent backend endpoints, called together from a single
 frontend action:
 
 - **`POST /jd-parse`** — body `{ jdText: string }` (Zod-validated, max
-  ~5,000 chars). One Gemini call, returns parsed fields: `company`,
+  ~5,000 chars). One LLM call, returns parsed fields: `company`,
   `roleTitle`, `salaryMin`/`salaryMax` if mentioned (`null` otherwise,
   matching the existing nullable schema), and a best-guess `source`
   from the existing `applicationSourceSchema` enum — defaults to
@@ -67,7 +74,7 @@ frontend action:
   "New application" form fields.
 - **`POST /fit-score`** — body `{ jdText: string }`. Reads the current
   resume server-side (never accepts resume text from the request
-  body). One Gemini call, returns `{ score: number (0-100), rationale:
+  body). One LLM call, returns `{ score: number (0-100), rationale:
   string }`.
 - **`PUT /resume`** — multipart file upload (PDF or DOCX). Extracts
   plain text server-side, upserts the singleton `resume` row.
@@ -77,7 +84,7 @@ frontend action:
   state.
 - **`POST /fit-score-all`** — no body. Reads the current resume
   server-side, and every `applications` row with a non-null `jd_text`,
-  most-recently-created first, capped at 25. **One Gemini call**, not
+  most-recently-created first, capped at 25. **One LLM call**, not
   N — the prompt lists the resume once plus each capped application's
   `id`/`company`/`roleTitle`/`jdText` (each `jdText` truncated to
   ~3,000 chars), and asks for a JSON array of
@@ -88,11 +95,11 @@ frontend action:
   applications with no `jd_text` plus any beyond the cap of 25.
 
   **Rejected alternative: loop `/fit-score` once per application.**
-  Same end result for the visitor, but it multiplies Gemini calls 1:1
+  Same end result for the visitor, but it multiplies LLM calls 1:1
   with however many applications are tracked — directly fighting the
   per-IP rate limit sized for "one visitor, one action" (see
   Guardrails). Batching into a single call keeps this endpoint at
-  exactly one Gemini call regardless of how many JDs are being
+  exactly one LLM call regardless of how many JDs are being
   compared, same shape as `/fit-score` and `/jd-parse`.
 
   **Cap of 25, not unbounded:** bounds worst-case prompt size and
@@ -105,8 +112,19 @@ frontend action:
 
 **Two endpoints, not one combined endpoint** (rejected alternative):
 keeps each call single-purpose and independently rate-limitable, at
-the cost of 2 Gemini calls when a visitor wants both results — an
+the cost of 2 LLM calls when a visitor wants both results — an
 accepted tradeoff given free-tier cost is already zero.
+
+**Provider call wrapper**: a single small function,
+`callChatModel(messages, schema)`, used by all three LLM-calling
+routes. Tries Cerebras first; on a 429 or 5xx, retries once against
+Groq with the same messages/schema before giving up. Both providers
+are OpenAI-compatible, so this is a config swap (`baseURL`, API key,
+same `gpt-oss-120b` model name) inside one function — not a provider
+abstraction/plugin system. This is the one piece of shared
+infrastructure all three routes depend on; everything else about each
+route (prompt content, schema shape, caps) stays independent per the
+"two/three independent endpoints" decision above.
 
 **Results are not persisted** to `applications` (rejected alternative:
 add columns to `applications` for parsed fields / score / rationale).
@@ -162,30 +180,36 @@ disabled or confusing button.
   prevents any single visitor from burning the shared daily free-tier
   budget, not a bespoke quota-tracking system.
 - **`/fit-score-all` gets its own, tighter limit** (e.g. 2
-  requests/IP/10min) — its Gemini call carries a much larger prompt
+  requests/IP/10min) — its LLM call carries a much larger prompt
   and output than the other three routes, so it costs more per call
   even though it's still exactly one call.
 - **Input caps**: `jdText` capped ~5,000 chars (Zod), resume upload
-  capped ~2MB — rejected before ever reaching Gemini or the parsing
+  capped ~2MB — rejected before ever reaching the LLM or the parsing
   libraries. `/fit-score-all` additionally caps at 25 applications
   and ~3,000 truncated chars of `jdText` per application (see
   Architecture) — the batched-prompt equivalent of the same
   bounded-input principle.
-- **`maxOutputTokens`** capped on every Gemini call, bounding
-  worst-case per-call cost/latency regardless of input.
-- **Structured output, validated twice**: `@google/genai`'s Zod-schema
-  support constrains the model's output shape at the API level, and
-  the response is re-validated against the same Zod schema server-side
-  before it ever reaches the client. Never trust the model's output
-  shape blindly; never render model output as raw HTML.
-- **Graceful quota handling**: Gemini's 429 (free-tier quota exceeded —
-  published limits are roughly 15 RPM / 1,000 RPD / 250K TPM for
-  `gemini-2.5-flash-lite`, per Google's own rate-limit page, subject to
-  change) is caught and mapped to a clean "AI demo temporarily
-  unavailable, try again shortly" response. No custom daily-counter
-  database — Gemini's own 429 is the source of truth; the Firewall
-  rule is what keeps the shared budget from being burned by one
-  visitor.
+- **`max_tokens`** capped on every LLM call, bounding worst-case
+  per-call cost/latency regardless of input.
+- **Structured output, validated twice**: `response_format: { type:
+  "json_schema", ... }` (both Cerebras and Groq support this
+  OpenAI-compatible parameter) constrains the model's output shape at
+  the API level, and the response is re-validated against the same Zod
+  schema server-side before it ever reaches the client. Never trust
+  the model's output shape blindly; never render model output as raw
+  HTML.
+- **Graceful quota handling**: a 429 from Cerebras triggers the
+  fallback to Groq inside `callChatModel` (see Architecture); only if
+  *both* providers 429 or error is it caught and mapped to a clean "AI
+  demo temporarily unavailable, try again shortly" response. No custom
+  daily-counter database — the providers' own 429s are the source of
+  truth; the Firewall rule is what keeps the shared budget from being
+  burned by one visitor. Cerebras' free tier (14,400 requests/day) and
+  Groq's (1,000/day) are both large enough relative to expected demo
+  traffic that this is a genuine fallback path, not the expected
+  steady state — unlike the originally-scoped Gemini tier (20
+  requests/day), which would have hit its daily cap under ordinary
+  demo traffic alone.
 - **Privacy**: uploading a resume to this public sandbox exposes its
   text to every visitor until the next nightly reset. Addressed by
   the disclaimer banner (below) plus the nightly wipe, not by
@@ -230,7 +254,7 @@ from checking fit while filling out one form, not a variant of it.
 2. **One primary action**: a single "Score all applications" button.
    No per-row "check this one" buttons and no auto-run-on-load — fits
    the project's existing re-run-on-click pattern (Non-goals) and
-   keeps this to exactly one Gemini call per click.
+   keeps this to exactly one LLM call per click.
 3. **Loading state**: the button becomes a disabled spinner
    ("Scoring N applications…") for the single in-flight request —
    no per-row skeletons, since results only exist once the one batched
@@ -274,7 +298,7 @@ application's own form.
 **Why a dedicated view over a column on the existing applications
 list** (rejected alternative): a `Fit` column would need every visible
 application scored on every list load, silently turning a page view
-into a Gemini call — clashing with the "AI features run explicitly on
+into an LLM call — clashing with the "AI features run explicitly on
 click" pattern used everywhere else in this spec. A separate view with
 one explicit trigger keeps that invariant, at the cost of one extra
 click before seeing scores.
@@ -285,44 +309,53 @@ click before seeing scores.
 |---|---|
 | No resume uploaded, `/fit-score` called | 422, clear message; UI shows upload prompt |
 | Corrupt/unreadable PDF or DOCX | Parsing library throws → caught → 400 "Couldn't read that file" |
-| Gemini returns malformed JSON / fails schema validation | 502-style "AI response was invalid, try again" — not a crash, not garbage rendered |
-| Gemini 429 (quota exceeded) | Clean "AI demo temporarily unavailable, try again shortly" |
-| `GEMINI_API_KEY` unset | Fail fast at startup with a clear console error — same pattern as `AUTH_ENABLED`/`API_TOKEN` |
+| LLM returns malformed JSON / fails schema validation | 502-style "AI response was invalid, try again" — not a crash, not garbage rendered |
+| Cerebras 429 (quota exceeded) | `callChatModel` retries once against Groq; only a Groq failure/429 too surfaces as "AI demo temporarily unavailable, try again shortly" |
+| `CEREBRAS_API_KEY` or `GROQ_API_KEY` unset | Fail fast at startup with a clear console error — same pattern as `AUTH_ENABLED`/`API_TOKEN` |
 | No resume uploaded, `/fit-score-all` called | 422, same upload prompt as `/fit-score` |
 | No applications have `jd_text` | 200, `{ results: [], consideredCount: 0, skippedCount: 0 }` — empty state, not an error |
 | More than 25 applications have `jd_text` | 200, `skippedCount` reflects the overflow; UI surfaces it as a visible note, not silently dropped |
-| Gemini returns a result array that doesn't match the requested application IDs | 502-style "AI response was invalid, try again" — same validate-before-render discipline as the other two endpoints |
+| LLM returns a result array that doesn't match the requested application IDs | 502-style "AI response was invalid, try again" — same validate-before-render discipline as the other two endpoints |
 
 ## Testing
 
 - **Unit tests** (`bun test`, existing pattern): Zod schemas for both
   new response shapes, the resume-nullable edge case, input-length
   rejection at the schema layer.
-- **Gemini calls are mocked in tests** — no real API calls in CI, kept
-  free/fast/deterministic, consistent with this project's existing
-  practice of never hitting real external services in the test suite.
+- **Cerebras/Groq calls are mocked in tests** — no real API calls in
+  CI, kept free/fast/deterministic, consistent with this project's
+  existing practice of never hitting real external services in the
+  test suite.
+- **`callChatModel` fallback unit test**: mock Cerebras returning a 429
+  and assert Groq is called with the same messages/schema, and that a
+  double-failure (both providers 429/error) surfaces the "temporarily
+  unavailable" path rather than throwing.
 - **E2E (Playwright)**: one happy-path test against a mocked/stubbed
-  Gemini response verifying UI wiring — analyze button fills the form
+  LLM response verifying UI wiring — analyze button fills the form
   and shows a fit score once a resume is uploaded; the "no resume"
-  state shows the upload prompt correctly. Not a real Gemini call in
-  CI, same rationale as above.
+  state shows the upload prompt correctly. Not a real API call in CI,
+  same rationale as above.
 - **`/fit-score-all` unit tests**: the 25-application cap and
   `skippedCount` computation, the empty-results (no `jd_text` anywhere)
-  case, and the mismatched-Gemini-response-shape rejection.
+  case, and the mismatched-LLM-response-shape rejection.
 - **`/fit-score-all` E2E**: seed a handful of applications with
-  `jd_text`, mock a batched Gemini response, verify the ranked table
+  `jd_text`, mock a batched LLM response, verify the ranked table
   renders sorted by score and the empty state shows correctly when no
   application has a `jd_text` yet.
 
 ## New dependencies & config
 
-- `@google/genai` — official current Gemini TS/JS SDK, supports
-  Zod-based structured output directly.
+- `openai` — official OpenAI TS/JS SDK, used purely as an
+  OpenAI-compatible HTTP client pointed at Cerebras' or Groq's
+  `baseURL` (neither call touches OpenAI itself). `response_format:
+  { type: "json_schema", ... }` gives structured output on both
+  providers; the response is still re-validated against the matching
+  Zod schema server-side (see Guardrails).
 - `pdf-parse` and `mammoth` — PDF and DOCX text extraction
   respectively; both are Bun-installable, pure-enough TypeScript
   packages.
-- New env var `GEMINI_API_KEY` (backend), documented in
-  `api/.env.example` following the existing pattern.
+- New env vars `CEREBRAS_API_KEY` and `GROQ_API_KEY` (backend),
+  documented in `api/.env.example` following the existing pattern.
 - New env var `VITE_SHOW_AI_DISCLAIMER` (frontend, sandbox-only).
 - New Vercel Firewall rule scoped to the three new routes, staged
   log → enforce per the existing rollout practice documented in
