@@ -2,10 +2,19 @@
 
 The 8 skills in this directory are copied, unmodified, from
 [jeffallan/claude-skills](https://github.com/jeffallan/claude-skills)
-(MIT licensed), selected as the subset actually relevant to this
-project's stack — TypeScript, React 19, Hono/Postgres, Playwright — plus
-prompt design for the Phase 4 Gemini integration and code review, which
-this project's own workflow calls for before every PR.
+(MIT licensed), pinned to commit
+[`e8be415`](https://github.com/jeffallan/claude-skills/commit/e8be415bc94d8d6ebddc2fb50e5d03c6e27d4319),
+selected as the subset actually relevant to this project's stack —
+TypeScript, React 19, Hono/Postgres, Playwright — plus prompt design for
+the Phase 4 Gemini integration and code review, which this project's own
+workflow calls for before every PR.
+
+Pinned deliberately, not tracking the source repo's `main` — a skill's
+`SKILL.md` is natural-language instructions an agent reads and follows,
+so silently picking up upstream changes on every re-vendor would mean
+trusting whatever that repo contains at some future, unreviewed point in
+time. Bumping the pin should be a deliberate act: re-fetch at a new
+commit, read the diff, and re-vendor — not an automatic refresh.
 
 Vendored (not symlinked/submoduled) so they travel with the repo and
 are available in any Claude Code session working on this project,
