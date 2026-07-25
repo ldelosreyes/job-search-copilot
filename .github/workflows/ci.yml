@@ -53,6 +53,21 @@ jobs:
           # pass — nothing in this smoke test calls Cerebras/Groq.
           CEREBRAS_API_KEY: ci-placeholder
           GROQ_API_KEY: ci-placeholder
+
+      # The test above runs under Bun, which is more lenient than Node
+      # (e.g. it resolves extensionless relative imports, and provides
+      # some browser globals Node doesn't). Vercel's Node.js Functions
+      # runtime is stricter on both counts, which twice let bugs reach
+      # production undetected — see WALKTHROUGH.md. This compiles with
+      # tsc (matching Vercel's own build step) and invokes the actual
+      # exported handler from api/index.ts directly, the same way
+      # Vercel calls it, on the same Linux runner Vercel deploys to.
+      - name: Smoke test API boot under Node.js (matches Vercel's runtime)
+        run: bun run --cwd api smoke:node
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          CEREBRAS_API_KEY: ci-placeholder
+          GROQ_API_KEY: ci-placeholder
     services:
       postgres:
         image: postgres:16
