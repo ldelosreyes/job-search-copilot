@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 
 // The module reads CEREBRAS_API_KEY/GROQ_API_KEY and constructs its two
 // OpenAI clients at import time — each client captures `fetch` as it is
@@ -76,11 +76,30 @@ describe("callChatModel", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  test("throws when both Cerebras and Groq fail", async () => {
+  test("falls back to Groq when Cerebras returns 402", async () => {
+    handler = async (url) => {
+      if (url.includes("api.cerebras.ai")) {
+        return jsonResponse(402, { error: { message: "payment required" } });
+      }
+      expect(url).toContain("api.groq.com");
+      return jsonResponse(200, chatCompletion({ ok: true, provider: "groq" }));
+    };
+
+    const result = await callChatModel(messages, schema, 500);
+
+    expect(result).toEqual({ ok: true, provider: "groq" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("logs the final provider error when both Cerebras and Groq fail", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     handler = async () => jsonResponse(500, { error: { message: "down" } });
 
     await expect(callChatModel(messages, schema, 500)).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0]?.[0]).toContain("Groq call failed");
+    errorSpy.mockRestore();
   });
 
   test("does not fall back on a non-retryable error (e.g. bad request)", async () => {

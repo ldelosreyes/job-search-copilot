@@ -4,7 +4,7 @@ import OpenAI from "openai";
  * Shared LLM call wrapper for all three AI routes (/jd-parse, /fit-score,
  * /fit-score-all — see
  * docs/superpowers/specs/2026-07-23-llm-integration-design.md). Tries
- * Cerebras first, falls back to Groq on a 429 or 5xx. Both providers
+ * Cerebras first, falls back to Groq on a 402, 429, or 5xx. Both providers
  * host the same gpt-oss-120b weights over an OpenAI-compatible API, so
  * this is a config swap (baseURL/key/model id) inside one function, not
  * a provider abstraction.
@@ -75,7 +75,11 @@ export interface JsonSchemaSpec {
 
 function isRetryable(error: unknown): boolean {
   if (error instanceof OpenAI.APIError) {
-    return error.status === 429 || (error.status !== undefined && error.status >= 500);
+    return (
+      error.status === 402 ||
+      error.status === 429 ||
+      (error.status !== undefined && error.status >= 500)
+    );
   }
   // Network-level failures (timeouts, DNS, connection reset) are also
   // worth falling through to the second provider for.
@@ -125,6 +129,13 @@ export async function callChatModel(
     console.warn(
       `Cerebras call failed (${error instanceof Error ? error.message : String(error)}), falling back to Groq.`,
     );
-    return complete(getGroq(), messages, schema, maxTokens);
+    try {
+      return await complete(getGroq(), messages, schema, maxTokens);
+    } catch (fallbackError) {
+      console.error(
+        `Groq call failed after Cerebras fallback (${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}).`,
+      );
+      throw fallbackError;
+    }
   }
 }
