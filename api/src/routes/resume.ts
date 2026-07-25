@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { detectResumeFileType, extractResumeText } from "../lib/extract-resume-text.js";
-import { getResumeStatus, upsertResume } from "../db/resume-repo.js";
+import {
+  deleteResumeAndClearScores,
+  getResumeStatus,
+  upsertResume,
+} from "../db/resume-repo.js";
 import { RESUME_MAX_BYTES } from "../lib/ai-limits.js";
 
 export const resumeRoute = new Hono()
@@ -42,4 +46,12 @@ export const resumeRoute = new Hono()
       return c.json({ error: "Failed to save resume" }, 500);
     }
     return c.json(result.value);
+  })
+
+  .delete("/", async (c) => {
+    const result = await deleteResumeAndClearScores();
+    if (!result.ok) {
+      return c.json({ error: "Failed to remove resume" }, 500);
+    }
+    return c.body(null, 204);
   });

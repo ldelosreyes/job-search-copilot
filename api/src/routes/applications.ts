@@ -128,7 +128,7 @@ export const applicationsRoute = new Hono()
         FIT_SCORE_MAX_TOKENS,
       );
     } catch {
-      return c.json({ error: "AI demo temporarily unavailable, try again shortly" }, 502);
+      return c.json({ error: "AI providers are temporarily unavailable, try again shortly" }, 502);
     }
 
     const parsed = fitScoreResultSchema.safeParse(raw);
@@ -146,12 +146,16 @@ export const applicationsRoute = new Hono()
       parsed.data.score,
       parsed.data.rationale,
       fingerprint,
+      resumeStatusResult.value.updatedAt,
     );
     if (!updateResult.ok) {
       return c.json({ error: "Failed to save fit score" }, 500);
     }
     if (!updateResult.value) {
-      return c.json({ error: "Not found" }, 404);
+      return c.json(
+        { error: "The application or resume changed while scoring, try again" },
+        409,
+      );
     }
     return c.json(updateResult.value);
   })

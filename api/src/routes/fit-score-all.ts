@@ -4,6 +4,7 @@ import { getResumeContent, getResumeStatus } from "../db/resume-repo.js";
 import { listApplications, setFitScore } from "../db/applications-repo.js";
 import { computeFitScoreFingerprint } from "../lib/fit-score-fingerprint.js";
 import { fitScoreAllJsonSchema, fitScoreAllLlmResponseSchema } from "../schemas/fit-score-all.js";
+import type { Application } from "../schemas/application.js";
 import {
   FIT_SCORE_ALL_JD_TEXT_CAP_CHARS,
   FIT_SCORE_ALL_MAX_APPLICATIONS,
@@ -17,7 +18,34 @@ const SYSTEM_PROMPT =
   "concrete overlaps and gaps. Return exactly one result per application " +
   "id given, using that same set of ids.";
 
-export const fitScoreAllRoute = new Hono().post("/", async (c) => {
+function needsFitScore(application: Application, resumeUpdatedAt: string) {
+  return (
+    application.jdText !== null &&
+    application.fitScoreFingerprint !==
+      computeFitScoreFingerprint(application.jdText, application.roleTitle, resumeUpdatedAt)
+  );
+}
+
+export const fitScoreAllRoute = new Hono().get("/", async (c) => {
+  const [resumeStatusResult, applicationsResult] = await Promise.all([
+    getResumeStatus(),
+    listApplications(),
+  ]);
+  if (!resumeStatusResult.ok || !applicationsResult.ok) {
+    return c.json({ error: "Failed to check scoring status" }, 500);
+  }
+
+  const eligibleCount = applicationsResult.value.filter(
+    (application) => application.jdText !== null,
+  ).length;
+  const scoreableCount = resumeStatusResult.value.updatedAt
+    ? applicationsResult.value.filter((application) =>
+        needsFitScore(application, resumeStatusResult.value.updatedAt!),
+      ).length
+    : 0;
+
+  return c.json({ eligibleCount, scoreableCount });
+}).post("/", async (c) => {
   const [resumeContentResult, resumeStatusResult] = await Promise.all([
     getResumeContent(),
     getResumeStatus(),
@@ -41,14 +69,7 @@ export const fitScoreAllRoute = new Hono().post("/", async (c) => {
   // Skip applications whose cached score was already computed against
   // the exact same jdText/roleTitle/resume — re-scoring them would just
   // burn LLM budget on an unchanged answer.
-  const stale = withJd.filter((application) => {
-    const currentFingerprint = computeFitScoreFingerprint(
-      application.jdText!,
-      application.roleTitle,
-      resumeUpdatedAt,
-    );
-    return application.fitScoreFingerprint !== currentFingerprint;
-  });
+  const stale = withJd.filter((application) => needsFitScore(application, resumeUpdatedAt));
 
   const toScore = stale.slice(0, FIT_SCORE_ALL_MAX_APPLICATIONS);
   const overCapCount = Math.max(0, stale.length - FIT_SCORE_ALL_MAX_APPLICATIONS);
@@ -80,7 +101,7 @@ export const fitScoreAllRoute = new Hono().post("/", async (c) => {
       FIT_SCORE_ALL_MAX_TOKENS,
     );
   } catch {
-    return c.json({ error: "AI demo temporarily unavailable, try again shortly" }, 502);
+    return c.json({ error: "AI providers are temporarily unavailable, try again shortly" }, 502);
   }
 
   const parsed = fitScoreAllLlmResponseSchema.safeParse(raw);
@@ -104,7 +125,22 @@ export const fitScoreAllRoute = new Hono().post("/", async (c) => {
       application.roleTitle,
       resumeUpdatedAt,
     );
-    await setFitScore(result.applicationId, result.score, result.rationale, fingerprint);
+    const updateResult = await setFitScore(
+      result.applicationId,
+      result.score,
+      result.rationale,
+      fingerprint,
+      resumeUpdatedAt,
+    );
+    if (!updateResult.ok) {
+      return c.json({ error: "Failed to save fit scores" }, 500);
+    }
+    if (!updateResult.value) {
+      return c.json(
+        { error: "An application or the resume changed while scoring, try again" },
+        409,
+      );
+    }
   }
 
   return c.json({ scoredCount: parsed.data.results.length, skippedCount });

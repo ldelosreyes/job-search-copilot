@@ -14,7 +14,9 @@ const getResumeStatusMock = mock(async () => ({
   value: { filename: null as string | null, updatedAt: null as string | null },
 }));
 const listApplicationsMock = mock(async () => ({ ok: true as const, value: [] as Application[] }));
-const setFitScoreMock = mock(async () => ({ ok: true as const, value: null }));
+const setFitScoreMock = mock(
+  async (): Promise<{ ok: true; value: Application | null }> => ({ ok: true, value: null }),
+);
 
 mock.module("../lib/llm-client", () => ({
   callChatModel: callChatModelMock,
@@ -65,8 +67,62 @@ function post() {
   return fitScoreAllRoute.request("/", { method: "POST" });
 }
 
+function get() {
+  return fitScoreAllRoute.request("/", { method: "GET" });
+}
+
 const ID_A = "11111111-1111-1111-1111-111111111111";
 const ID_B = "22222222-2222-2222-2222-222222222222";
+
+describe("GET /fit-score-all", () => {
+  beforeEach(() => {
+    getResumeStatusMock.mockClear();
+    listApplicationsMock.mockClear();
+    getResumeStatusMock.mockResolvedValue({
+      ok: true,
+      value: { filename: "resume.pdf", updatedAt: RESUME_UPDATED_AT },
+    });
+    listApplicationsMock.mockResolvedValue({ ok: true, value: [] });
+    setFitScoreMock.mockResolvedValue({
+      ok: true,
+      value: makeApplication({ id: ID_A, fitScore: 50 }),
+    });
+  });
+
+  test("reports no scoreable applications when every cached score is current", async () => {
+    const freshFingerprint = computeFitScoreFingerprint(
+      "We need a staff engineer.",
+      "Staff Engineer",
+      RESUME_UPDATED_AT,
+    );
+    listApplicationsMock.mockResolvedValueOnce({
+      ok: true,
+      value: [
+        makeApplication({ id: ID_A, fitScore: 82, fitScoreFingerprint: freshFingerprint }),
+      ],
+    });
+
+    const res = await get();
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ eligibleCount: 1, scoreableCount: 0 });
+  });
+
+  test("counts only applications with a JD and a missing or stale score", async () => {
+    listApplicationsMock.mockResolvedValueOnce({
+      ok: true,
+      value: [
+        makeApplication({ id: ID_A }),
+        makeApplication({ id: ID_B, jdText: null }),
+      ],
+    });
+
+    const res = await get();
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ eligibleCount: 1, scoreableCount: 1 });
+  });
+});
 
 describe("POST /fit-score-all", () => {
   beforeEach(() => {
@@ -151,7 +207,26 @@ describe("POST /fit-score-all", () => {
       90,
       "Now a strong match.",
       computeFitScoreFingerprint("We need a staff engineer.", "Staff Engineer", RESUME_UPDATED_AT),
+      RESUME_UPDATED_AT,
     );
+  });
+
+  test("returns 409 when the resume changes before a score can be saved", async () => {
+    listApplicationsMock.mockResolvedValueOnce({
+      ok: true,
+      value: [makeApplication({ id: ID_A })],
+    });
+    callChatModelMock.mockResolvedValueOnce({
+      results: [{ applicationId: ID_A, score: 90, rationale: "Strong match." }],
+    });
+    setFitScoreMock.mockResolvedValueOnce({ ok: true, value: null });
+
+    const res = await post();
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "An application or the resume changed while scoring, try again",
+    });
   });
 
   test("caps at 25 stale applications and reports the rest as skipped", async () => {
@@ -184,7 +259,9 @@ describe("POST /fit-score-all", () => {
     const res = await post();
 
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: "AI demo temporarily unavailable, try again shortly" });
+    expect(await res.json()).toEqual({
+      error: "AI providers are temporarily unavailable, try again shortly",
+    });
   });
 
   test("returns 502 when the LLM response doesn't match the expected shape", async () => {

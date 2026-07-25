@@ -55,3 +55,26 @@ export async function upsertResume(filename: string, content: string): Promise<R
     return err(error instanceof Error ? error : new Error(String(error)));
   }
 }
+
+export async function deleteResumeAndClearScores(): Promise<Result<boolean>> {
+  try {
+    const removed = await sql.begin(async (trx) => {
+      const rows = await trx`delete from resume where id = 1 returning id`;
+      await trx`
+        update applications
+        set fit_score = null,
+            fit_rationale = null,
+            fit_scored_at = null,
+            fit_score_fingerprint = null
+        where fit_score is not null
+           or fit_rationale is not null
+           or fit_scored_at is not null
+           or fit_score_fingerprint is not null
+      `;
+      return rows.length > 0;
+    });
+    return ok(removed);
+  } catch (error) {
+    return err(error instanceof Error ? error : new Error(String(error)));
+  }
+}

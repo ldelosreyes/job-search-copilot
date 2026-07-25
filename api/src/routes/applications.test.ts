@@ -18,7 +18,9 @@ const getResumeStatusMock = mock(async () => ({
   value: { filename: null as string | null, updatedAt: null as string | null },
 }));
 const getApplicationMock = mock(async () => ({ ok: true as const, value: null as Application | null }));
-const setFitScoreMock = mock(async () => ({ ok: true as const, value: null as Application | null }));
+const setFitScoreMock = mock(
+  async (): Promise<{ ok: true; value: Application | null }> => ({ ok: true, value: null }),
+);
 
 mock.module("../lib/llm-client", () => ({
   callChatModel: callChatModelMock,
@@ -78,6 +80,10 @@ describe("POST /applications/:id/fit-score", () => {
       ok: true,
       value: { filename: "resume.pdf", updatedAt: RESUME_UPDATED_AT },
     });
+    setFitScoreMock.mockResolvedValue({
+      ok: true,
+      value: makeApplication({ id: ID_A, fitScore: 82 }),
+    });
   });
 
   test("returns 404 when the application doesn't exist", async () => {
@@ -127,7 +133,24 @@ describe("POST /applications/:id/fit-score", () => {
       82,
       "Strong overlap.",
       computeFitScoreFingerprint(application.jdText!, application.roleTitle, RESUME_UPDATED_AT),
+      RESUME_UPDATED_AT,
     );
+  });
+
+  test("returns 409 when the resume changes before the score can be saved", async () => {
+    getApplicationMock.mockResolvedValueOnce({
+      ok: true,
+      value: makeApplication({ id: ID_A }),
+    });
+    callChatModelMock.mockResolvedValueOnce({ score: 82, rationale: "Strong overlap." });
+    setFitScoreMock.mockResolvedValueOnce({ ok: true, value: null });
+
+    const res = await scoreFit(ID_A);
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "The application or resume changed while scoring, try again",
+    });
   });
 
   test("returns 502 when both providers fail", async () => {
@@ -137,7 +160,9 @@ describe("POST /applications/:id/fit-score", () => {
     const res = await scoreFit(ID_A);
 
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: "AI demo temporarily unavailable, try again shortly" });
+    expect(await res.json()).toEqual({
+      error: "AI providers are temporarily unavailable, try again shortly",
+    });
   });
 
   test("returns 502 when the LLM response doesn't match the expected shape", async () => {

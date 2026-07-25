@@ -43,6 +43,24 @@ export function useUploadResume() {
     },
     onSuccess: (status) => {
       queryClient.setQueryData(resumeStatusKey, status);
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+    },
+  });
+}
+
+export function useDeleteResume() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.resume.$delete();
+      if (!res.ok) throw new Error("Failed to remove resume");
+    },
+    onSuccess: () => {
+      queryClient.setQueryData<ResumeStatus>(resumeStatusKey, {
+        filename: null,
+        updatedAt: null,
+      });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
     },
   });
 }
