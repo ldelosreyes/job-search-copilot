@@ -205,6 +205,33 @@ describe("ApplicationList card editing", () => {
     );
   });
 
+  test("shows validation feedback and blocks invalid salary values", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationList />);
+
+    await user.click(screen.getByRole("button", { name: "Edit application" }));
+    await user.clear(screen.getByLabelText("Salary minimum"));
+    await user.type(screen.getByLabelText("Salary minimum"), "-1");
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Salaries cannot be negative.");
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+  });
+
+  test("shows an accessible error when an application update fails", async () => {
+    mockUseUpdateApplication.mockReturnValue({
+      mutate: updateMutate,
+      isPending: false,
+      isError: true,
+      error: new Error("Failed to update application"),
+    } as unknown as ReturnType<typeof useUpdateApplication>);
+
+    const user = userEvent.setup();
+    render(<ApplicationList />);
+    await user.click(screen.getByRole("button", { name: "Edit application" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Failed to update application");
+  });
+
   test("opens a confirmation dialog from an icon-only card delete button", async () => {
     const user = userEvent.setup();
     render(<ApplicationList />);
@@ -252,6 +279,21 @@ describe("ApplicationList card editing", () => {
       screen.queryByRole("dialog", { name: "Delete application" }),
     ).not.toBeInTheDocument();
     expect(deleteButton).toHaveFocus();
+  });
+
+  test("shows an accessible error when application deletion fails", async () => {
+    mockUseDeleteApplication.mockReturnValue({
+      mutate: deleteMutate,
+      isPending: false,
+      isError: true,
+      error: new Error("Failed to delete application"),
+    } as unknown as ReturnType<typeof useDeleteApplication>);
+
+    const user = userEvent.setup();
+    render(<ApplicationList />);
+    await user.click(screen.getByRole("button", { name: "Delete application" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Failed to delete application");
   });
 
   test("closes the modal and returns focus to the edit button after cancelling", async () => {

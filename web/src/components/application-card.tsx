@@ -102,6 +102,14 @@ function ApplicationCardEditor({
   const [jdText, setJdText] = useState(application.jdText ?? "");
   const [notes, setNotes] = useState(application.notes ?? "");
   const updateApplication = useUpdateApplication();
+  const numericError =
+    [salaryMin, salaryMax].some((value) => value !== "" && Number(value) < 0)
+      ? "Salaries cannot be negative."
+      : status.stage === "offer" &&
+          status.offerAmount !== undefined &&
+          status.offerAmount <= 0
+        ? "Offer amount must be greater than zero."
+        : null;
 
   function handleSave() {
     updateApplication.mutate(
@@ -152,6 +160,7 @@ function ApplicationCardEditor({
           <Field label="Salary minimum">
             <Input
               type="number"
+              min={0}
               value={salaryMin}
               onChange={(event) => setSalaryMin(event.target.value)}
             />
@@ -159,6 +168,7 @@ function ApplicationCardEditor({
           <Field label="Salary maximum">
             <Input
               type="number"
+              min={0}
               value={salaryMax}
               onChange={(event) => setSalaryMax(event.target.value)}
             />
@@ -203,6 +213,7 @@ function ApplicationCardEditor({
           <Field label="Offer amount">
             <Input
               type="number"
+              min={1}
               value={status.offerAmount ?? ""}
               onChange={(event) =>
                 setStatus({
@@ -230,10 +241,26 @@ function ApplicationCardEditor({
         />
       </Field>
 
+      {numericError && (
+        <p role="alert" className="text-destructive text-sm">
+          {numericError}
+        </p>
+      )}
+      {updateApplication.isError && (
+        <p role="alert" className="text-destructive text-sm">
+          {(updateApplication.error as Error).message}
+        </p>
+      )}
+
       <div className="flex items-center gap-2">
         <Button
           type="button"
-          disabled={!company.trim() || !roleTitle.trim() || updateApplication.isPending}
+          disabled={
+            !company.trim() ||
+            !roleTitle.trim() ||
+            Boolean(numericError) ||
+            updateApplication.isPending
+          }
           onClick={handleSave}
         >
           {updateApplication.isPending ? "Saving..." : "Save changes"}
@@ -367,6 +394,11 @@ function DeleteApplicationDialog({
             </strong>
             ? This action cannot be undone.
           </p>
+          {deleteApplication.isError && (
+            <p role="alert" className="text-destructive text-sm">
+              {(deleteApplication.error as Error).message}
+            </p>
+          )}
         </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" autoFocus onClick={onClose}>
