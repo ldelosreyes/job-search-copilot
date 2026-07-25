@@ -566,3 +566,49 @@ Also fixed while checking the live site: the browser tab still showed
 Vite's default `<title>web</title>`, and the README never actually
 linked the deployed sandbox URL anywhere — a `git clone` away from a demo
 that already existed but wasn't discoverable.
+
+## The Bun-runtime beta bug that took the sandbox down
+
+Well after the deployment work above, the live sandbox started failing
+silently: the web app sat on "Loading applications…" forever, and the
+browser console showed a CORS error on `/applications` — no
+`Access-Control-Allow-Origin` header on the response. That looked like a
+CORS regression, but the CORS logic (`api/src/index.ts`) hadn't changed.
+
+Sending the same preflight `OPTIONS` request directly with `curl`
+(bypassing the browser, which was masking the real response) showed the
+actual failure: `HTTP 500 FUNCTION_INVOCATION_FAILED`. The API function
+was crashing on *every* request — including `GET /`, which doesn't even
+touch the database — so the browser's CORS error was a downstream
+artifact: a crashed Lambda never runs the `cors()` middleware, so its
+error response has no CORS headers at all, and the browser reports that
+as a policy violation rather than surfacing the underlying 500.
+
+`vercel logs` showed the real exception on every single invocation:
+
+```
+TypeError: Requested module is not instantiated yet.
+    at link (native:1:11) ... at linkAndEvaluateModule ... at requestImportModule
+Bun process exited with exit status: 1.
+```
+
+This turned out to be a [known, unresolved bug in Vercel's Bun runtime
+for functions](https://community.vercel.com/t/bun-runtime-requested-module-is-not-instantiated-yet/26380)
+— the same beta feature enabled back in "Switching to the Bun runtime"
+above. Vercel/Bun's own team, in that thread, confirmed it stems from
+circular ES-module linking and currently has no fix, only a workaround:
+run the deployed function on Node.js instead.
+
+Worth being honest about the earlier reasoning here: "Switching to the
+Bun runtime" enabled Bun because the *code itself* had already been made
+Node-compatible by that point (extensionless imports, see "Deploy
+attempt #4" above) — the switch to Bun afterward was for dev/prod
+runtime consistency, not because Node.js had stopped working. That meant
+reverting was safe: removing `bunVersion: "1.x"` from `api/vercel.json`
+let the deployed function fall back to Vercel's default Node.js runtime,
+which is exactly the state already proven working before the Bun switch.
+`api/api/index.ts` already declared `config.runtime: "nodejs"` from the
+original Node.js deploy — that line had simply been silently overridden
+by `bunVersion` ever since, and reverting let it take effect again.
+Confirmed nothing in `api/src` depends on Bun-only globals (no `Bun.*`
+usage outside test files) before making the change.
