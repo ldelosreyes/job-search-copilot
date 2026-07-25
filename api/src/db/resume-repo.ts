@@ -1,6 +1,6 @@
-import { sql } from "./client";
-import { ok, err, type Result } from "../lib/result";
-import type { ResumeStatus } from "../schemas/resume";
+import { sql } from "./client.js";
+import { ok, err, type Result } from "../lib/result.js";
+import type { ResumeStatus } from "../schemas/resume.js";
 
 function toIsoString(value: unknown): string {
   return value instanceof Date ? value.toISOString() : (value as string);

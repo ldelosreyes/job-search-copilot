@@ -1,5 +1,5 @@
 import { handle } from "hono/vercel";
-import { app } from "../src/index";
+import { app } from "../src/index.js";
 
 /**
  * Locally we run src/index.ts directly under Bun (bun run --hot).

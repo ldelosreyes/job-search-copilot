@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { callChatModel } from "../lib/llm-client";
-import { getResumeContent } from "../db/resume-repo";
-import { fitScoreJsonSchema, fitScoreRequestSchema, fitScoreResultSchema } from "../schemas/fit-score";
+import { callChatModel } from "../lib/llm-client.js";
+import { getResumeContent } from "../db/resume-repo.js";
+import { fitScoreJsonSchema, fitScoreRequestSchema, fitScoreResultSchema } from "../schemas/fit-score.js";
 
 // A numeric score plus a short (2-3 sentence) rationale — more headroom
 // than /jd-parse's handful of fields, but still a small, bounded reply.

@@ -1,11 +1,11 @@
-import { sql } from "./client";
+import { sql } from "./client.js";
 import {
   applicationSchema,
   type Application,
   type CreateApplicationInput,
   type UpdateApplicationInput,
-} from "../schemas/application";
-import { ok, err, type Result } from "../lib/result";
+} from "../schemas/application.js";
+import { ok, err, type Result } from "../lib/result.js";
 
 /**
  * Postgres stores column names in snake_case; our TypeScript types are

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { applicationSourceSchema } from "./application";
+import { applicationSourceSchema } from "./application.js";
 
 // ~5,000 char cap per the Phase 4 spec's Guardrails — rejected before
 // ever reaching the LLM.
