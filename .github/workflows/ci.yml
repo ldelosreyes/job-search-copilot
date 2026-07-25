@@ -35,9 +35,18 @@ jobs:
         run: |
           bun run --cwd api src/index.ts &
           API_PID=$!
-          sleep 2
-          curl -sf http://localhost:3001/health
-          kill $API_PID
+
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3001/health && break
+            sleep 1
+          done
+          curl -sf http://localhost:3001/health > /dev/null || {
+            echo "API never became healthy"
+            kill "$API_PID"
+            exit 1
+          }
+
+          kill "$API_PID"
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
           # Only need to be *set* for llm-client.ts's fail-fast check to
