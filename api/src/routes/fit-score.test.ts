@@ -10,8 +10,14 @@ mock.module("../lib/llm-client", () => ({
   callChatModel: callChatModelMock,
 }));
 
+// bun:test's mock.module patches the module globally for the whole test
+// run, not just this file — every export another route imports from
+// this module must be present here too (see applications.ts/
+// fit-score-all.ts's getResumeStatus use), or a test file relying on it
+// can fail with "export not found" depending on file load order.
 mock.module("../db/resume-repo", () => ({
   getResumeContent: getResumeContentMock,
+  getResumeStatus: mock(async () => ({ ok: true, value: { filename: null, updatedAt: null } })),
 }));
 
 const { fitScoreRoute } = await import("./fit-score");

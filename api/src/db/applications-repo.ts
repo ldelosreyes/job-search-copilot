@@ -23,6 +23,11 @@ function rowToApplication(row: Record<string, unknown>): Application {
     jdText: row.jd_text,
     notes: row.notes,
     status: row.status,
+    fitScore: row.fit_score,
+    fitRationale: row.fit_rationale,
+    fitScoredAt:
+      row.fit_scored_at instanceof Date ? row.fit_scored_at.toISOString() : row.fit_scored_at,
+    fitScoreFingerprint: row.fit_score_fingerprint,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
   };
@@ -103,6 +108,33 @@ export async function updateApplication(
     const rows = await sql`
       update applications
       set ${sql(patch)}, updated_at = now()
+      where id = ${id}
+      returning *
+    `;
+    return ok(rows[0] ? rowToApplication(rows[0]) : null);
+  } catch (error) {
+    return err(error instanceof Error ? error : new Error(String(error)));
+  }
+}
+
+/**
+ * Persists a fit-score result — separate from updateApplication since
+ * these fields are server-computed only, never part of the client-facing
+ * update payload (see updateApplicationSchema).
+ */
+export async function setFitScore(
+  id: string,
+  fitScore: number,
+  fitRationale: string,
+  fingerprint: string,
+): Promise<Result<Application | null>> {
+  try {
+    const rows = await sql`
+      update applications
+      set fit_score = ${fitScore},
+          fit_rationale = ${fitRationale},
+          fit_scored_at = now(),
+          fit_score_fingerprint = ${fingerprint}
       where id = ${id}
       returning *
     `;
