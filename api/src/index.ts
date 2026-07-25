@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { applicationsRoute } from "./routes/applications";
-import { resumeRoute } from "./routes/resume";
-import { jdParseRoute } from "./routes/jd-parse";
-import { fitScoreRoute } from "./routes/fit-score";
-import { requireAuth } from "./middleware/auth";
-import { requireApiToken } from "./middleware/api-token";
+import { applicationsRoute } from "./routes/applications.js";
+import { resumeRoute } from "./routes/resume.js";
+import { jdParseRoute } from "./routes/jd-parse.js";
+import { fitScoreRoute } from "./routes/fit-score.js";
+import { requireAuth } from "./middleware/auth.js";
+import { requireApiToken } from "./middleware/api-token.js";
 
 // Vercel gives every preview deployment and branch alias its own unique
 // origin (e.g. job-search-copilot-web-sandbox-<hash>-ldelosreyes-se.vercel.app),

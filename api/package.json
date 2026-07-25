@@ -7,7 +7,9 @@
     "seed": "bun run scripts/seed.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "build": "tsc -p tsconfig.build.json",
+    "smoke:node": "rm -rf dist && bun run build && node scripts/smoke-test-node.mjs"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.4.2",

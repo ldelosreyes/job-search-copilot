@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { callChatModel } from "../lib/llm-client";
-import { jdParseJsonSchema, jdParseRequestSchema, jdParseResultSchema } from "../schemas/jd-parse";
+import { callChatModel } from "../lib/llm-client.js";
+import { jdParseJsonSchema, jdParseRequestSchema, jdParseResultSchema } from "../schemas/jd-parse.js";
 
 // A handful of short string/number fields — 500 tokens is generous
 // headroom without leaving the cap effectively unbounded.

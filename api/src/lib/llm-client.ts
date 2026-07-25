@@ -29,34 +29,44 @@ interface Provider {
   model: string;
 }
 
-// Fail fast at startup (matches db/client.ts's DATABASE_URL check) rather
-// than throwing mid-request on whichever request happens to arrive first.
+// Built lazily, not at module scope: index.ts imports jd-parse/fit-score
+// unconditionally, so an eager requireEnv() here used to throw at *app
+// import time* — crashing every route, including /health, whenever
+// CEREBRAS_API_KEY/GROQ_API_KEY were unset (they are on this project's
+// Vercel preview deployments). Deferring construction to first actual
+// use means only requests that hit an LLM route need these keys.
 // maxRetries: 0 on both — the SDK's own default retry-on-429/5xx would
 // otherwise retry against the *same* provider 2-3 times before ever
 // raising the error for callChatModel's own fallback to see, burning
 // quota and latency against a provider that just said "no" instead of
 // falling through to the other one immediately.
-const cerebras: Provider = {
-  name: "Cerebras",
-  client: new OpenAI({
-    baseURL: "https://api.cerebras.ai/v1",
-    apiKey: requireEnv("CEREBRAS_API_KEY"),
-    maxRetries: 0,
-  }),
-  model: "gpt-oss-120b",
-};
+let cerebras: Provider | undefined;
+function getCerebras(): Provider {
+  return (cerebras ??= {
+    name: "Cerebras",
+    client: new OpenAI({
+      baseURL: "https://api.cerebras.ai/v1",
+      apiKey: requireEnv("CEREBRAS_API_KEY"),
+      maxRetries: 0,
+    }),
+    model: "gpt-oss-120b",
+  });
+}
 
-const groq: Provider = {
-  name: "Groq",
-  client: new OpenAI({
-    baseURL: "https://api.groq.com/openai/v1",
-    apiKey: requireEnv("GROQ_API_KEY"),
-    maxRetries: 0,
-  }),
+let groq: Provider | undefined;
+function getGroq(): Provider {
   // Groq's model catalog namespaces this one differently than Cerebras
   // does, despite being the same underlying weights.
-  model: "openai/gpt-oss-120b",
-};
+  return (groq ??= {
+    name: "Groq",
+    client: new OpenAI({
+      baseURL: "https://api.groq.com/openai/v1",
+      apiKey: requireEnv("GROQ_API_KEY"),
+      maxRetries: 0,
+    }),
+    model: "openai/gpt-oss-120b",
+  });
+}
 
 export interface JsonSchemaSpec {
   name: string;
@@ -107,7 +117,7 @@ export async function callChatModel(
   maxTokens: number,
 ): Promise<unknown> {
   try {
-    return await complete(cerebras, messages, schema, maxTokens);
+    return await complete(getCerebras(), messages, schema, maxTokens);
   } catch (error) {
     if (!isRetryable(error)) {
       throw error;
@@ -115,6 +125,6 @@ export async function callChatModel(
     console.warn(
       `Cerebras call failed (${error instanceof Error ? error.message : String(error)}), falling back to Groq.`,
     );
-    return complete(groq, messages, schema, maxTokens);
+    return complete(getGroq(), messages, schema, maxTokens);
   }
 }

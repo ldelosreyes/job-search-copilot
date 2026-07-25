@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 
 export type ResumeFileType = "pdf" | "docx";
@@ -20,6 +19,12 @@ export function detectResumeFileType(filename: string, mimeType: string): Resume
 }
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
+  // Dynamic import, not a top-level one: pdf-parse pulls in pdfjs-dist,
+  // whose module-scope code unconditionally references the browser-only
+  // DOMMatrix global as a fallback when its native canvas polyfill isn't
+  // available. A top-level import would crash the entire app at cold
+  // start on Node (no DOMMatrix), for every route, not just PDF uploads.
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();

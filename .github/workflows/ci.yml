@@ -31,6 +31,14 @@ jobs:
       # Boots the API against a throwaway Postgres service container and
       # hits /health, so CI catches a broken server start (bad import,
       # missing env handling, etc.) before it ever reaches Vercel.
+      #
+      # Deliberately does NOT set CEREBRAS_API_KEY/GROQ_API_KEY: this
+      # project's real Vercel deployments don't have them configured
+      # either, and a prior version of llm-client.ts constructed its
+      # OpenAI clients eagerly at module scope, so a missing key crashed
+      # the entire app (every route, not just the LLM ones) at import
+      # time. Placeholder values here would have masked that exact bug —
+      # see WALKTHROUGH.md.
       - name: Smoke test API boot
         run: |
           bun run --cwd api src/index.ts &
@@ -49,10 +57,22 @@ jobs:
           kill "$API_PID"
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-          # Only need to be *set* for llm-client.ts's fail-fast check to
-          # pass — nothing in this smoke test calls Cerebras/Groq.
-          CEREBRAS_API_KEY: ci-placeholder
-          GROQ_API_KEY: ci-placeholder
+
+      # The test above runs under Bun, which is more lenient than Node
+      # (e.g. it resolves extensionless relative imports, and provides
+      # some browser globals Node doesn't). Vercel's Node.js Functions
+      # runtime is stricter on both counts, which twice let bugs reach
+      # production undetected — see WALKTHROUGH.md. Vercel's own builder
+      # transpiles each file individually rather than running our tsc
+      # config, but tsc's project build produces the same on-disk shape
+      # (per-file .js output, import specifiers left untouched) so this
+      # is an equivalent proxy, not the literal same tool. It invokes the
+      # actual exported handler from api/index.ts directly, the same way
+      # Vercel calls it, on the same Linux runner Vercel deploys to.
+      - name: Smoke test API boot under Node.js (matches Vercel's runtime)
+        run: bun run --cwd api smoke:node
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
     services:
       postgres:
         image: postgres:16

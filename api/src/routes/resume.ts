@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { detectResumeFileType, extractResumeText } from "../lib/extract-resume-text";
-import { getResumeStatus, upsertResume } from "../db/resume-repo";
+import { detectResumeFileType, extractResumeText } from "../lib/extract-resume-text.js";
+import { getResumeStatus, upsertResume } from "../db/resume-repo.js";
 
 // ~2MB cap per the Phase 4 spec's Guardrails — rejected before ever
 // reaching the parsing libraries.
