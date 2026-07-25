@@ -31,7 +31,12 @@ export const fitScoreRoute = new Hono().post(
       raw = await callChatModel(
         [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `RESUME:\n${resumeResult.value}\n\nJOB DESCRIPTION:\n${jdText}` },
+          {
+            role: "user",
+            // Unlike jdText (schema-capped at 5,000), extracted resume text has
+            // no upper bound — a large PDF/DOCX can blow the model's context.
+            content: `RESUME:\n${resumeResult.value.slice(0, 5_000)}\n\nJOB DESCRIPTION:\n${jdText}`,
+          },
         ],
         fitScoreJsonSchema,
         MAX_TOKENS,
