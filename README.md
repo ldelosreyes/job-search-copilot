@@ -60,12 +60,25 @@ bun install
 # api/.env  (copy from api/.env.example)
 DATABASE_URL=<your Supabase Postgres connection string>
 
-# Run the SQL in api/supabase/migrations/0001_applications.sql against
-# that database (via the Supabase SQL editor, or psql).
+# Run every file in api/supabase/migrations/, in order, against that
+# database (via the Supabase SQL editor, or psql) — currently
+# 0001_applications.sql and 0002_resume.sql. Missing one isn't always
+# obvious: the app boots fine and only the affected feature breaks (see
+# the "resume table" incident in WALKTHROUGH.md).
 
 bun run dev:api   # http://localhost:3001
 bun run dev:web   # http://localhost:5173, proxies /api -> :3001
 ```
+
+The JD-parsing and resume-fit-scoring features (`/jd-parse`, `/fit-score`,
+`/fit-score-all`) need `CEREBRAS_API_KEY` and `GROQ_API_KEY` set in
+`api/.env` — both are free-tier, no phone verification required
+(cloud.cerebras.ai, console.groq.com). Without them, those three routes
+return a clean "AI demo temporarily unavailable" response rather than
+failing to start — every other route works regardless. See
+`api/src/lib/llm-client.ts` and
+[`docs/superpowers/specs/2026-07-23-llm-integration-design.md`](./docs/superpowers/specs/2026-07-23-llm-integration-design.md)
+for the full design.
 
 `bun run typecheck` and `bun run lint` at the repo root run both packages.
 
