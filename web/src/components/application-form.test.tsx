@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApplicationForm } from "./application-form";
 import { useCreateApplication } from "@/hooks/use-applications";
+import { useAnalyzeWithAi } from "@/hooks/use-analyze-with-ai";
 
 /**
  * Characterization tests for ApplicationForm's current behavior, written
@@ -19,17 +20,29 @@ vi.mock("@/hooks/use-applications", () => ({
   useCreateApplication: vi.fn(),
 }));
 
+vi.mock("@/hooks/use-analyze-with-ai", () => ({
+  useAnalyzeWithAi: vi.fn(),
+}));
+
 const mockUseCreateApplication = vi.mocked(useCreateApplication);
+const mockUseAnalyzeWithAi = vi.mocked(useAnalyzeWithAi);
 
 describe("ApplicationForm", () => {
   const mutateAsync = vi.fn();
+  const analyzeMutate = vi.fn();
 
   beforeEach(() => {
     mutateAsync.mockReset();
+    analyzeMutate.mockReset();
     mockUseCreateApplication.mockReturnValue({
       mutateAsync,
       isPending: false,
     } as unknown as ReturnType<typeof useCreateApplication>);
+    mockUseAnalyzeWithAi.mockReturnValue({
+      mutate: analyzeMutate,
+      isPending: false,
+      data: undefined,
+    } as unknown as ReturnType<typeof useAnalyzeWithAi>);
   });
 
   test("shows a validation error and does not submit when company and role title are blank", async () => {
@@ -88,5 +101,111 @@ describe("ApplicationForm", () => {
     expect(
       await screen.findByText("Something went wrong saving the application. Try again."),
     ).toBeInTheDocument();
+  });
+
+  describe("Analyze with AI", () => {
+    test("is disabled until a JD is pasted, and calls analyze with the trimmed text", async () => {
+      const user = userEvent.setup();
+      render(<ApplicationForm />);
+
+      expect(screen.getByRole("button", { name: "Analyze with AI" })).toBeDisabled();
+
+      await user.type(screen.getByPlaceholderText("Paste the JD (optional)"), "  Some JD text  ");
+      expect(screen.getByRole("button", { name: "Analyze with AI" })).toBeEnabled();
+
+      await user.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      expect(analyzeMutate).toHaveBeenCalledWith(
+        "Some JD text",
+        expect.objectContaining({ onSuccess: expect.any(Function) }),
+      );
+    });
+
+    test("shows a disabled 'Analyzing...' state while pending", () => {
+      mockUseAnalyzeWithAi.mockReturnValue({
+        mutate: analyzeMutate,
+        isPending: true,
+        data: undefined,
+      } as unknown as ReturnType<typeof useAnalyzeWithAi>);
+
+      render(<ApplicationForm />);
+
+      expect(screen.getByRole("button", { name: "Analyzing..." })).toBeDisabled();
+    });
+
+    test("autofills the form from a successful jd-parse result", async () => {
+      analyzeMutate.mockImplementation((_jdText, { onSuccess }) => {
+        onSuccess({
+          jdParse: {
+            ok: true,
+            data: {
+              company: "Acme Co",
+              roleTitle: "Staff Engineer",
+              source: "referral",
+              salaryMin: 100_000,
+              salaryMax: 150_000,
+            },
+          },
+          fitScore: { ok: true, data: { score: 82, rationale: "Strong overlap." } },
+        });
+      });
+      const user = userEvent.setup();
+      render(<ApplicationForm />);
+
+      await user.type(screen.getByPlaceholderText("Paste the JD (optional)"), "Some JD text");
+      await user.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() => expect(screen.getByPlaceholderText("Company")).toHaveValue("Acme Co"));
+      expect(screen.getByPlaceholderText("Role title")).toHaveValue("Staff Engineer");
+      expect(screen.getByPlaceholderText("Salary min")).toHaveValue(100_000);
+      expect(screen.getByPlaceholderText("Salary max")).toHaveValue(150_000);
+    });
+
+    test("renders the fit score and rationale from a successful result", () => {
+      mockUseAnalyzeWithAi.mockReturnValue({
+        mutate: analyzeMutate,
+        isPending: false,
+        data: {
+          jdParse: { ok: true, data: {} },
+          fitScore: { ok: true, data: { score: 82, rationale: "Strong overlap." } },
+        },
+      } as unknown as ReturnType<typeof useAnalyzeWithAi>);
+
+      render(<ApplicationForm />);
+
+      expect(screen.getByText("82", { exact: false })).toBeInTheDocument();
+      expect(screen.getByText(/Strong overlap\./)).toBeInTheDocument();
+    });
+
+    test("renders each call's error independently — a failed fit-score doesn't hide a successful jd-parse", () => {
+      mockUseAnalyzeWithAi.mockReturnValue({
+        mutate: analyzeMutate,
+        isPending: false,
+        data: {
+          jdParse: { ok: true, data: {} },
+          fitScore: { ok: false, error: "Upload a resume to check fit" },
+        },
+      } as unknown as ReturnType<typeof useAnalyzeWithAi>);
+
+      render(<ApplicationForm />);
+
+      expect(screen.getByText("Upload a resume to check fit")).toBeInTheDocument();
+    });
+
+    test("renders each call's error independently — a failed jd-parse doesn't hide a successful fit-score", () => {
+      mockUseAnalyzeWithAi.mockReturnValue({
+        mutate: analyzeMutate,
+        isPending: false,
+        data: {
+          jdParse: { ok: false, error: "Couldn't parse the JD." },
+          fitScore: { ok: true, data: { score: 40, rationale: "Weak overlap." } },
+        },
+      } as unknown as ReturnType<typeof useAnalyzeWithAi>);
+
+      render(<ApplicationForm />);
+
+      expect(screen.getByText("Couldn't parse the JD.")).toBeInTheDocument();
+      expect(screen.getByText(/Weak overlap\./)).toBeInTheDocument();
+    });
   });
 });

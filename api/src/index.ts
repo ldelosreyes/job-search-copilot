@@ -5,6 +5,7 @@ import { applicationsRoute } from "./routes/applications.js";
 import { resumeRoute } from "./routes/resume.js";
 import { jdParseRoute } from "./routes/jd-parse.js";
 import { fitScoreRoute } from "./routes/fit-score.js";
+import { fitScoreAllRoute } from "./routes/fit-score-all.js";
 import { requireAuth } from "./middleware/auth.js";
 import { requireApiToken } from "./middleware/api-token.js";
 
@@ -57,7 +58,10 @@ const app = new Hono()
   .route("/jd-parse", jdParseRoute)
   .use("/fit-score/*", requireApiToken)
   .use("/fit-score/*", requireAuth)
-  .route("/fit-score", fitScoreRoute);
+  .route("/fit-score", fitScoreRoute)
+  .use("/fit-score-all/*", requireApiToken)
+  .use("/fit-score-all/*", requireAuth)
+  .route("/fit-score-all", fitScoreAllRoute);
 
 // Exporting the app's type lets the web package use Hono's RPC client
 // (hc<AppType>) for fully type-checked fetch calls — request bodies,

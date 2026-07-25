@@ -1,10 +1,7 @@
 import { Hono } from "hono";
 import { detectResumeFileType, extractResumeText } from "../lib/extract-resume-text.js";
 import { getResumeStatus, upsertResume } from "../db/resume-repo.js";
-
-// ~2MB cap per the Phase 4 spec's Guardrails — rejected before ever
-// reaching the parsing libraries.
-const MAX_RESUME_BYTES = 2 * 1024 * 1024;
+import { RESUME_MAX_BYTES } from "../lib/ai-limits.js";
 
 export const resumeRoute = new Hono()
   .get("/", async (c) => {
@@ -23,8 +20,8 @@ export const resumeRoute = new Hono()
       return c.json({ error: "Expected a multipart upload with a 'file' field" }, 400);
     }
 
-    if (file.size > MAX_RESUME_BYTES) {
-      return c.json({ error: "File too large (max 2MB)" }, 400);
+    if (file.size > RESUME_MAX_BYTES) {
+      return c.json({ error: `File too large (max ${Math.floor(RESUME_MAX_BYTES / 1024 / 1024)}MB)` }, 400);
     }
 
     const fileType = detectResumeFileType(file.name, file.type);
