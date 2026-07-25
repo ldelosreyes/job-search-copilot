@@ -31,6 +31,14 @@ jobs:
       # Boots the API against a throwaway Postgres service container and
       # hits /health, so CI catches a broken server start (bad import,
       # missing env handling, etc.) before it ever reaches Vercel.
+      #
+      # Deliberately does NOT set CEREBRAS_API_KEY/GROQ_API_KEY: this
+      # project's real Vercel deployments don't have them configured
+      # either, and a prior version of llm-client.ts constructed its
+      # OpenAI clients eagerly at module scope, so a missing key crashed
+      # the entire app (every route, not just the LLM ones) at import
+      # time. Placeholder values here would have masked that exact bug —
+      # see WALKTHROUGH.md.
       - name: Smoke test API boot
         run: |
           bun run --cwd api src/index.ts &
@@ -49,10 +57,6 @@ jobs:
           kill "$API_PID"
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-          # Only need to be *set* for llm-client.ts's fail-fast check to
-          # pass — nothing in this smoke test calls Cerebras/Groq.
-          CEREBRAS_API_KEY: ci-placeholder
-          GROQ_API_KEY: ci-placeholder
 
       # The test above runs under Bun, which is more lenient than Node
       # (e.g. it resolves extensionless relative imports, and provides
@@ -69,8 +73,6 @@ jobs:
         run: bun run --cwd api smoke:node
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-          CEREBRAS_API_KEY: ci-placeholder
-          GROQ_API_KEY: ci-placeholder
     services:
       postgres:
         image: postgres:16
