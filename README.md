@@ -129,10 +129,11 @@ monorepo, so each package is deployed separately:
 **API (`api/`):**
 1. New Vercel project, **Root Directory: `api`**. With this root, Vercel's
    zero-config detection finds `api/index.ts` (the `hono/vercel` adapter)
-   as a serverless function automatically. `api/vercel.json` also sets
-   `bunVersion: "1.x"` — the deployed function runs on Vercel's Bun
-   runtime rather than Node.js, since the code relies on Bun-style module
-   resolution (see `WALKTHROUGH.md` for why this matters).
+   as a serverless function automatically, and it deploys on Vercel's
+   default Node.js runtime (`api/api/index.ts` sets
+   `config.runtime: "nodejs"` explicitly). Vercel's Bun runtime for
+   functions was tried and reverted after it started crashing every
+   request in production — see `WALKTHROUGH.md` for the full incident.
 2. Environment variable `DATABASE_URL` set to the Supabase connection
    string (use the pooled "Transaction mode" URI, not the direct
    connection, since serverless functions open/close connections per
