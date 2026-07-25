@@ -1,5 +1,6 @@
 import { hc } from "hono/client";
 import type { AppType } from "@job-search-copilot/api/src/index.ts";
+import { authEnabled, supabase } from "./supabase-client";
 
 /**
  * hc<AppType>() gives us a client where every route, param, and
@@ -13,20 +14,31 @@ import type { AppType } from "@job-search-copilot/api/src/index.ts";
  * entirely during local development. Once deployed, there is no dev
  * proxy — VITE_API_URL must point at the deployed API's origin, and
  * the API's CORS config (WEB_ORIGIN) must allow this site's origin.
- *
- * VITE_API_TOKEN mirrors the API's requireApiToken middleware (see
- * api/src/middleware/api-token.ts) — a static shared-secret gate for
- * the sandbox environment, not real per-user auth. Sent unconditionally;
- * when unset, this header is simply absent, which is exactly what the
- * middleware expects when API_TOKEN isn't configured server-side either.
  */
 export const apiBaseUrl = import.meta.env.VITE_API_URL ?? "/api";
 
-// Exported for the one request hc<AppType>() can't type-safely express —
-// PUT /resume's multipart file upload — so that raw fetch() call still
-// goes through the same base URL/auth as everything else.
-export const apiHeaders: Record<string, string> = import.meta.env.VITE_API_TOKEN
-  ? { Authorization: `Bearer ${import.meta.env.VITE_API_TOKEN}` }
-  : {};
+/**
+ * Exported for the one request hc<AppType>() can't type-safely express —
+ * PUT /resume's multipart file upload — so that raw fetch() call still
+ * goes through the same base URL/auth as everything else.
+ *
+ * When auth is enabled, this reads the *current* Supabase session's
+ * access token fresh on every call (matching api/src/middleware/
+ * auth.ts's requireAuth, which verifies that same JWT) — a static
+ * header captured once at module load would go stale the moment the
+ * token refreshes or the user signs out. Falls back to the old static
+ * VITE_API_TOKEN (requireApiToken's shared-secret gate) when auth is
+ * disabled, which is simply absent when API_TOKEN isn't configured
+ * server-side either — matching before this existed.
+ */
+export async function getApiHeaders(): Promise<Record<string, string>> {
+  if (authEnabled && supabase) {
+    const { data } = await supabase.auth.getSession();
+    return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
+  }
+  return import.meta.env.VITE_API_TOKEN
+    ? { Authorization: `Bearer ${import.meta.env.VITE_API_TOKEN}` }
+    : {};
+}
 
-export const apiClient = hc<AppType>(apiBaseUrl, { headers: apiHeaders });
+export const apiClient = hc<AppType>(apiBaseUrl, { headers: getApiHeaders });

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient, apiBaseUrl, apiHeaders } from "@/lib/api-client";
+import { apiClient, apiBaseUrl, getApiHeaders } from "@/lib/api-client";
 import type { ResumeStatus } from "@job-search-copilot/api/src/schemas/resume.ts";
 
 const resumeStatusKey = ["resume-status"] as const;
@@ -28,7 +28,7 @@ export function useUploadResume() {
       // through apiClient — same base URL/auth headers as everywhere else.
       const res = await fetch(`${apiBaseUrl}/resume`, {
         method: "PUT",
-        headers: apiHeaders,
+        headers: await getApiHeaders(),
         body: formData,
       });
       if (!res.ok) {
