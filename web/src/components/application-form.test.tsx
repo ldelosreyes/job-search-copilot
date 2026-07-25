@@ -104,6 +104,14 @@ describe("ApplicationForm", () => {
   });
 
   describe("Analyze with AI", () => {
+    test("right-aligns the action and places its icon after the label", () => {
+      render(<ApplicationForm />);
+
+      const button = screen.getByRole("button", { name: "Analyze with AI" });
+      expect(button.parentElement).toHaveClass("justify-end");
+      expect(button.lastElementChild).toHaveClass("lucide-sparkles");
+    });
+
     test("is disabled until a JD is pasted, and calls analyze with the trimmed text", async () => {
       const user = userEvent.setup();
       render(<ApplicationForm />);

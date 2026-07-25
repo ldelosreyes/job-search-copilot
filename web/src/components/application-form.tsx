@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -139,14 +140,16 @@ export function ApplicationForm() {
             onChange={(e) => update("jdText", e.target.value)}
           />
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-end gap-3">
             <Button
               type="button"
               variant="outline"
+              className="w-full sm:w-auto"
               disabled={!form.jdText.trim() || analyze.isPending}
               onClick={handleAnalyze}
             >
               {analyze.isPending ? "Analyzing..." : "Analyze with AI"}
+              <Sparkles className="size-4" aria-hidden="true" />
             </Button>
             {analyze.data && !analyze.data.jdParse.ok && (
               <p className="text-destructive text-sm">{analyze.data.jdParse.error}</p>

@@ -5,8 +5,8 @@ import { z } from "zod";
  *
  * Why this matters (and why it's worth explaining in an interview):
  * each stage of a job application carries genuinely different data —
- * an "interview" has a round number, a "rejected" has a reason, an
- * "offer" has an amount and a deadline. A flat `status: string` field
+ * an "interview" has a round number, a "rejected" has a timestamp, and
+ * an "offer" has an amount and a deadline. A flat `status: string` field
  * would force every one of those fields to be optional on every row,
  * and nothing would stop you from constructing a "rejected" application
  * with an `offerAmount` set. Modeling it as a discriminated union on
@@ -39,13 +39,11 @@ const offerStatus = z.object({
 
 const rejectedStatus = z.object({
   stage: z.literal("rejected"),
-  reason: z.string().optional(),
   rejectedAt: z.string().datetime(),
 });
 
 const withdrawnStatus = z.object({
   stage: z.literal("withdrawn"),
-  reason: z.string().optional(),
 });
 
 export const applicationStatusSchema = z.discriminatedUnion("stage", [

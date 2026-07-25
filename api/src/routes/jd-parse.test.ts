@@ -66,7 +66,7 @@ describe("POST /jd-parse", () => {
 
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({
-      error: "AI demo temporarily unavailable, try again shortly",
+      error: "AI providers are temporarily unavailable, try again shortly",
     });
   });
 

@@ -18,6 +18,7 @@ mock.module("../lib/llm-client", () => ({
 mock.module("../db/resume-repo", () => ({
   getResumeContent: getResumeContentMock,
   getResumeStatus: mock(async () => ({ ok: true, value: { filename: null, updatedAt: null } })),
+  getResumeSnapshot: mock(async () => ({ ok: true, value: null })),
 }));
 
 const { fitScoreRoute } = await import("./fit-score");
@@ -77,7 +78,7 @@ describe("POST /fit-score", () => {
 
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({
-      error: "AI demo temporarily unavailable, try again shortly",
+      error: "AI providers are temporarily unavailable, try again shortly",
     });
   });
 

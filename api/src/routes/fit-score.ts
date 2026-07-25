@@ -39,7 +39,7 @@ export const fitScoreRoute = new Hono().post(
         FIT_SCORE_MAX_TOKENS,
       );
     } catch {
-      return c.json({ error: "AI demo temporarily unavailable, try again shortly" }, 502);
+      return c.json({ error: "AI providers are temporarily unavailable, try again shortly" }, 502);
     }
 
     const parsed = fitScoreResultSchema.safeParse(raw);

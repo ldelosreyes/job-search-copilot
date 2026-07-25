@@ -127,18 +127,41 @@ export async function setFitScore(
   fitScore: number,
   fitRationale: string,
   fingerprint: string,
+  expectedResumeUpdatedAt: string,
 ): Promise<Result<Application | null>> {
   try {
-    const rows = await sql`
-      update applications
-      set fit_score = ${fitScore},
-          fit_rationale = ${fitRationale},
-          fit_scored_at = now(),
-          fit_score_fingerprint = ${fingerprint}
-      where id = ${id}
-      returning *
-    `;
-    return ok(rows[0] ? rowToApplication(rows[0]) : null);
+    const application = await sql.begin(async (trx) => {
+      // Lock the exact resume version used for the LLM request before
+      // writing its derived score. DELETE/PUT needs an incompatible lock
+      // on this row, so either this write finishes first and DELETE clears
+      // it afterward, or the resume mutation finishes first and this
+      // version check prevents the stale write.
+      const resumeRows = await trx`
+        select updated_at
+        from resume
+        where id = 1
+        for share
+      `;
+      const currentResumeUpdatedAt =
+        resumeRows[0]?.updated_at instanceof Date
+          ? resumeRows[0].updated_at.toISOString()
+          : resumeRows[0]?.updated_at;
+      if (currentResumeUpdatedAt !== expectedResumeUpdatedAt) {
+        return null;
+      }
+
+      const rows = await trx`
+        update applications
+        set fit_score = ${fitScore},
+            fit_rationale = ${fitRationale},
+            fit_scored_at = now(),
+            fit_score_fingerprint = ${fingerprint}
+        where id = ${id}
+        returning *
+      `;
+      return rows[0] ? rowToApplication(rows[0]) : null;
+    });
+    return ok(application);
   } catch (error) {
     return err(error instanceof Error ? error : new Error(String(error)));
   }

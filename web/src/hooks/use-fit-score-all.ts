@@ -1,5 +1,16 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+
+export function useFitScoreAllStatus() {
+  return useQuery({
+    queryKey: ["applications", "fit-score-status"],
+    queryFn: async () => {
+      const res = await apiClient["fit-score-all"].$get();
+      if (!res.ok) throw new Error("Failed to check scoring status");
+      return res.json();
+    },
+  });
+}
 
 /**
  * Scores every unscored/stale application against the current resume in

@@ -31,7 +31,7 @@ export const jdParseRoute = new Hono().post(
     } catch {
       // Both Cerebras and Groq failed (quota exhausted, 5xx, network
       // error) — see callChatModel's fallback logic.
-      return c.json({ error: "AI demo temporarily unavailable, try again shortly" }, 502);
+      return c.json({ error: "AI providers are temporarily unavailable, try again shortly" }, 502);
     }
 
     // A response came back, but doesn't match the expected shape —

@@ -44,7 +44,7 @@ describe("applicationStatusSchema — discriminated union", () => {
     expect(result.success).toBe(true);
   });
 
-  test("rejected requires rejectedAt but reason is optional", () => {
+  test("rejected requires rejectedAt", () => {
     const valid = applicationStatusSchema.safeParse({
       stage: "rejected",
       rejectedAt: "2026-01-01T00:00:00.000Z",
@@ -58,6 +58,21 @@ describe("applicationStatusSchema — discriminated union", () => {
   test("withdrawn only requires the stage itself", () => {
     const result = applicationStatusSchema.safeParse({ stage: "withdrawn" });
     expect(result.success).toBe(true);
+  });
+
+  test("strips the legacy reason field from terminal statuses", () => {
+    const rejected = applicationStatusSchema.parse({
+      stage: "rejected",
+      rejectedAt: "2026-01-01T00:00:00.000Z",
+      reason: "Position filled.",
+    });
+    const withdrawn = applicationStatusSchema.parse({
+      stage: "withdrawn",
+      reason: "Accepted another role.",
+    });
+
+    expect("reason" in rejected).toBe(false);
+    expect("reason" in withdrawn).toBe(false);
   });
 
   test("rejects a stage value outside the six known ones", () => {
