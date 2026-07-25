@@ -27,15 +27,18 @@ export function StatusBadge({ status }: { status: ApplicationStatus }) {
     case "offer":
       detail = status.offerAmount ? `$${status.offerAmount.toLocaleString()}` : null;
       break;
-    case "rejected":
-      detail = status.reason ?? null;
-      break;
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Badge variant={config.variant}>{config.label}</Badge>
-      {detail && <span className="text-muted-foreground text-xs">{detail}</span>}
+    <div className="flex max-w-[50%] min-w-0 items-center gap-2">
+      <Badge className="shrink-0" variant={config.variant}>
+        {config.label}
+      </Badge>
+      {detail && (
+        <span className="text-muted-foreground truncate text-xs" title={detail}>
+          {detail}
+        </span>
+      )}
     </div>
   );
 }

@@ -12,9 +12,8 @@ import { test, expect } from "@playwright/test";
  * specific application's card, not "whichever card is currently first."
  *
  * Status text is asserted via `[data-slot="badge"]` specifically, not a
- * generic getByText — the stage <select>'s own <option> elements contain
- * the same words in lowercase (e.g. "interview"), and getByText's
- * case-insensitive default matching makes that genuinely ambiguous.
+ * generic getByText — when a card is being edited, the stage <select>'s
+ * own <option> elements contain the same words in lowercase.
  */
 
 test.describe("application CRUD", () => {
@@ -45,9 +44,10 @@ test.describe("application CRUD", () => {
 
     // The discriminated union in practice: switching to "interview"
     // reveals the round input, which only exists for that stage.
-    await card.getByRole("combobox").selectOption("interview");
-    await expect(card.getByPlaceholder("Round")).toBeVisible();
-    await card.getByRole("button", { name: "Save" }).click();
+    await card.getByRole("button", { name: "Edit application" }).click();
+    await card.getByLabel("Stage").selectOption("interview");
+    await expect(card.getByLabel("Interview round")).toBeVisible();
+    await card.getByRole("button", { name: "Save changes" }).click();
 
     await expect(card.locator('[data-slot="badge"]')).toHaveText("Interview");
   });
@@ -62,7 +62,10 @@ test.describe("application CRUD", () => {
     const card = page.locator('[data-slot="card"]', { hasText: company });
     await expect(card).toBeVisible();
 
-    await card.getByRole("button", { name: "Delete" }).click();
+    await card.getByRole("button", { name: "Delete application" }).click();
+    const dialog = page.getByRole("dialog", { name: "Delete application" });
+    await expect(dialog.getByText(`Delete Test Role at ${company}`)).toBeVisible();
+    await dialog.getByRole("button", { name: "Delete", exact: true }).click();
 
     await expect(page.locator('[data-slot="card"]', { hasText: company })).toHaveCount(0);
   });
@@ -101,9 +104,10 @@ test.describe("application CRUD", () => {
     // A negative round is rejected server-side with a 400; the UI has no
     // error banner for a failed stage update, so the observable behavior
     // is that the badge simply never advances to "Interview".
-    await card.getByRole("combobox").selectOption("interview");
-    await card.getByPlaceholder("Round").fill("-1");
-    await card.getByRole("button", { name: "Save" }).click();
+    await card.getByRole("button", { name: "Edit application" }).click();
+    await card.getByLabel("Stage").selectOption("interview");
+    await card.getByLabel("Interview round").fill("-1");
+    await card.getByRole("button", { name: "Save changes" }).click();
 
     await expect(card.locator('[data-slot="badge"]')).toHaveText("Applied");
   });
