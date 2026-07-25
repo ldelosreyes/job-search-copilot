@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { callChatModel } from "../lib/llm-client.js";
-import { getResumeContent, getResumeStatus } from "../db/resume-repo.js";
+import { getResumeSnapshot, getResumeStatus } from "../db/resume-repo.js";
 import { listApplications, setFitScore } from "../db/applications-repo.js";
 import { computeFitScoreFingerprint } from "../lib/fit-score-fingerprint.js";
 import { fitScoreAllJsonSchema, fitScoreAllLlmResponseSchema } from "../schemas/fit-score-all.js";
@@ -46,17 +46,15 @@ export const fitScoreAllRoute = new Hono().get("/", async (c) => {
 
   return c.json({ eligibleCount, scoreableCount });
 }).post("/", async (c) => {
-  const [resumeContentResult, resumeStatusResult] = await Promise.all([
-    getResumeContent(),
-    getResumeStatus(),
-  ]);
-  if (!resumeContentResult.ok || !resumeStatusResult.ok) {
+  const resumeResult = await getResumeSnapshot();
+  if (!resumeResult.ok) {
     return c.json({ error: "Failed to fetch resume" }, 500);
   }
-  if (!resumeContentResult.value || !resumeStatusResult.value.updatedAt) {
+  if (!resumeResult.value) {
     return c.json({ error: "Upload a resume to check fit" }, 422);
   }
-  const resumeUpdatedAt = resumeStatusResult.value.updatedAt;
+  const resume = resumeResult.value;
+  const resumeUpdatedAt = resume.updatedAt;
 
   const applicationsResult = await listApplications();
   if (!applicationsResult.ok) {
@@ -94,7 +92,7 @@ export const fitScoreAllRoute = new Hono().get("/", async (c) => {
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: `RESUME:\n${resumeContentResult.value.slice(0, RESUME_TEXT_MAX_CHARS)}\n\nAPPLICATIONS:\n${applicationsBlock}`,
+          content: `RESUME:\n${resume.content.slice(0, RESUME_TEXT_MAX_CHARS)}\n\nAPPLICATIONS:\n${applicationsBlock}`,
         },
       ],
       fitScoreAllJsonSchema,

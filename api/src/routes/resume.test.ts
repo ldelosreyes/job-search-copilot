@@ -15,7 +15,8 @@ mock.module("../db/resume-repo", () => ({
     value: { filename: null, updatedAt: null },
   })),
   getResumeContent: mock(async () => ({ ok: true, value: null })),
-  upsertResume: mock(async () => ({
+  getResumeSnapshot: mock(async () => ({ ok: true, value: null })),
+  upsertResumeAndClearScores: mock(async () => ({
     ok: true,
     value: { filename: "resume.pdf", updatedAt: "2026-01-01T00:00:00.000Z" },
   })),

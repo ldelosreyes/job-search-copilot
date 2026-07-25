@@ -17,6 +17,10 @@ const getResumeStatusMock = mock(async () => ({
   ok: true as const,
   value: { filename: null as string | null, updatedAt: null as string | null },
 }));
+const getResumeSnapshotMock = mock(async () => ({
+  ok: true as const,
+  value: null as { content: string; filename: string; updatedAt: string } | null,
+}));
 const getApplicationMock = mock(async () => ({ ok: true as const, value: null as Application | null }));
 const setFitScoreMock = mock(
   async (): Promise<{ ok: true; value: Application | null }> => ({ ok: true, value: null }),
@@ -29,6 +33,7 @@ mock.module("../lib/llm-client", () => ({
 mock.module("../db/resume-repo", () => ({
   getResumeContent: getResumeContentMock,
   getResumeStatus: getResumeStatusMock,
+  getResumeSnapshot: getResumeSnapshotMock,
 }));
 
 mock.module("../db/applications-repo", () => ({
@@ -73,12 +78,21 @@ describe("POST /applications/:id/fit-score", () => {
     callChatModelMock.mockClear();
     getResumeContentMock.mockClear();
     getResumeStatusMock.mockClear();
+    getResumeSnapshotMock.mockClear();
     getApplicationMock.mockClear();
     setFitScoreMock.mockClear();
     getResumeContentMock.mockResolvedValue({ ok: true, value: "Some resume text." });
     getResumeStatusMock.mockResolvedValue({
       ok: true,
       value: { filename: "resume.pdf", updatedAt: RESUME_UPDATED_AT },
+    });
+    getResumeSnapshotMock.mockResolvedValue({
+      ok: true,
+      value: {
+        content: "Some resume text.",
+        filename: "resume.pdf",
+        updatedAt: RESUME_UPDATED_AT,
+      },
     });
     setFitScoreMock.mockResolvedValue({
       ok: true,
@@ -107,8 +121,7 @@ describe("POST /applications/:id/fit-score", () => {
 
   test("returns 422 when no resume has been uploaded", async () => {
     getApplicationMock.mockResolvedValueOnce({ ok: true, value: makeApplication({ id: ID_A }) });
-    getResumeContentMock.mockResolvedValueOnce({ ok: true, value: null });
-    getResumeStatusMock.mockResolvedValueOnce({ ok: true, value: { filename: null, updatedAt: null } });
+    getResumeSnapshotMock.mockResolvedValueOnce({ ok: true, value: null });
 
     const res = await scoreFit(ID_A);
 
@@ -128,6 +141,7 @@ describe("POST /applications/:id/fit-score", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(updated);
+    expect(getResumeSnapshotMock).toHaveBeenCalledTimes(1);
     expect(setFitScoreMock).toHaveBeenCalledWith(
       ID_A,
       82,

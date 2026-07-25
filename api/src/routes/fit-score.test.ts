@@ -18,6 +18,7 @@ mock.module("../lib/llm-client", () => ({
 mock.module("../db/resume-repo", () => ({
   getResumeContent: getResumeContentMock,
   getResumeStatus: mock(async () => ({ ok: true, value: { filename: null, updatedAt: null } })),
+  getResumeSnapshot: mock(async () => ({ ok: true, value: null })),
 }));
 
 const { fitScoreRoute } = await import("./fit-score");

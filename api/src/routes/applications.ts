@@ -13,7 +13,7 @@ import {
   deleteApplication,
   setFitScore,
 } from "../db/applications-repo.js";
-import { getResumeContent, getResumeStatus } from "../db/resume-repo.js";
+import { getResumeSnapshot } from "../db/resume-repo.js";
 import { callChatModel } from "../lib/llm-client.js";
 import { computeFitScoreFingerprint } from "../lib/fit-score-fingerprint.js";
 import { fitScoreJsonSchema, fitScoreResultSchema } from "../schemas/fit-score.js";
@@ -98,16 +98,14 @@ export const applicationsRoute = new Hono()
       return c.json({ error: "This application has no JD to score against" }, 422);
     }
 
-    const [resumeContentResult, resumeStatusResult] = await Promise.all([
-      getResumeContent(),
-      getResumeStatus(),
-    ]);
-    if (!resumeContentResult.ok || !resumeStatusResult.ok) {
+    const resumeResult = await getResumeSnapshot();
+    if (!resumeResult.ok) {
       return c.json({ error: "Failed to fetch resume" }, 500);
     }
-    if (!resumeContentResult.value || !resumeStatusResult.value.updatedAt) {
+    if (!resumeResult.value) {
       return c.json({ error: "Upload a resume to check fit" }, 422);
     }
+    const resume = resumeResult.value;
 
     let raw: unknown;
     try {
@@ -121,7 +119,7 @@ export const applicationsRoute = new Hono()
             // stored jdText has no length cap of its own — truncate here
             // too, or a long-since-pasted JD blows the token budget on
             // every single-card score.
-            content: `RESUME:\n${resumeContentResult.value.slice(0, RESUME_TEXT_MAX_CHARS)}\n\nJOB DESCRIPTION:\n${application.jdText.slice(0, JD_TEXT_MAX_CHARS)}`,
+            content: `RESUME:\n${resume.content.slice(0, RESUME_TEXT_MAX_CHARS)}\n\nJOB DESCRIPTION:\n${application.jdText.slice(0, JD_TEXT_MAX_CHARS)}`,
           },
         ],
         fitScoreJsonSchema,
@@ -139,14 +137,14 @@ export const applicationsRoute = new Hono()
     const fingerprint = computeFitScoreFingerprint(
       application.jdText,
       application.roleTitle,
-      resumeStatusResult.value.updatedAt,
+      resume.updatedAt,
     );
     const updateResult = await setFitScore(
       id,
       parsed.data.score,
       parsed.data.rationale,
       fingerprint,
-      resumeStatusResult.value.updatedAt,
+      resume.updatedAt,
     );
     if (!updateResult.ok) {
       return c.json({ error: "Failed to save fit score" }, 500);

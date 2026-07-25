@@ -13,6 +13,10 @@ const getResumeStatusMock = mock(async () => ({
   ok: true as const,
   value: { filename: null as string | null, updatedAt: null as string | null },
 }));
+const getResumeSnapshotMock = mock(async () => ({
+  ok: true as const,
+  value: null as { content: string; filename: string; updatedAt: string } | null,
+}));
 const listApplicationsMock = mock(async () => ({ ok: true as const, value: [] as Application[] }));
 const setFitScoreMock = mock(
   async (): Promise<{ ok: true; value: Application | null }> => ({ ok: true, value: null }),
@@ -25,6 +29,7 @@ mock.module("../lib/llm-client", () => ({
 mock.module("../db/resume-repo", () => ({
   getResumeContent: getResumeContentMock,
   getResumeStatus: getResumeStatusMock,
+  getResumeSnapshot: getResumeSnapshotMock,
 }));
 
 // bun:test's mock.module patches the module globally for the whole test
@@ -129,6 +134,7 @@ describe("POST /fit-score-all", () => {
     callChatModelMock.mockClear();
     getResumeContentMock.mockClear();
     getResumeStatusMock.mockClear();
+    getResumeSnapshotMock.mockClear();
     listApplicationsMock.mockClear();
     setFitScoreMock.mockClear();
     getResumeContentMock.mockResolvedValue({ ok: true, value: "Some resume text." });
@@ -136,12 +142,19 @@ describe("POST /fit-score-all", () => {
       ok: true,
       value: { filename: "resume.pdf", updatedAt: RESUME_UPDATED_AT },
     });
+    getResumeSnapshotMock.mockResolvedValue({
+      ok: true,
+      value: {
+        content: "Some resume text.",
+        filename: "resume.pdf",
+        updatedAt: RESUME_UPDATED_AT,
+      },
+    });
     listApplicationsMock.mockResolvedValue({ ok: true, value: [] });
   });
 
   test("returns 422 when no resume has been uploaded", async () => {
-    getResumeContentMock.mockResolvedValueOnce({ ok: true, value: null });
-    getResumeStatusMock.mockResolvedValueOnce({ ok: true, value: { filename: null, updatedAt: null } });
+    getResumeSnapshotMock.mockResolvedValueOnce({ ok: true, value: null });
 
     const res = await post();
 
@@ -202,6 +215,7 @@ describe("POST /fit-score-all", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ scoredCount: 1, skippedCount: 0 });
+    expect(getResumeSnapshotMock).toHaveBeenCalledTimes(1);
     expect(setFitScoreMock).toHaveBeenCalledWith(
       ID_A,
       90,

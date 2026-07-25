@@ -3,7 +3,7 @@ import { detectResumeFileType, extractResumeText } from "../lib/extract-resume-t
 import {
   deleteResumeAndClearScores,
   getResumeStatus,
-  upsertResume,
+  upsertResumeAndClearScores,
 } from "../db/resume-repo.js";
 import { RESUME_MAX_BYTES } from "../lib/ai-limits.js";
 
@@ -41,7 +41,7 @@ export const resumeRoute = new Hono()
       return c.json({ error: "Couldn't read that file" }, 400);
     }
 
-    const result = await upsertResume(file.name, content);
+    const result = await upsertResumeAndClearScores(file.name, content);
     if (!result.ok) {
       return c.json({ error: "Failed to save resume" }, 500);
     }
