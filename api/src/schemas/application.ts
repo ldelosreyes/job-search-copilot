@@ -81,17 +81,32 @@ export const applicationSchema = z.object({
   jdText: z.string().nullable(),
   notes: z.string().nullable(),
   status: applicationStatusSchema,
+  // Cached fit-score result, set only by POST /applications/:id/fit-score
+  // and POST /fit-score-all — never accepted as client input (see
+  // createApplicationSchema/updateApplicationSchema below).
+  // fitScoreFingerprint is a hash of (jdText, roleTitle, resume.updatedAt)
+  // at scoring time; a mismatch against current values means the cached
+  // score is stale (a JD/title edit or a resume replacement invalidates
+  // it without a separate flag to keep in sync by hand).
+  fitScore: z.number().min(0).max(100).nullable(),
+  fitRationale: z.string().nullable(),
+  fitScoredAt: z.string().datetime().nullable(),
+  fitScoreFingerprint: z.string().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
 
 export type Application = z.infer<typeof applicationSchema>;
 
-/** Payload accepted when creating a new application — server assigns id/timestamps. */
+/** Payload accepted when creating a new application — server assigns id/timestamps/fit-score fields. */
 export const createApplicationSchema = applicationSchema.omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  fitScore: true,
+  fitRationale: true,
+  fitScoredAt: true,
+  fitScoreFingerprint: true,
 });
 
 export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;

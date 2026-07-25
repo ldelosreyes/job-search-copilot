@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { applicationSourceSchema } from "./application.js";
+import { JD_TEXT_MAX_CHARS } from "../lib/ai-limits.js";
 
-// ~5,000 char cap per the Phase 4 spec's Guardrails — rejected before
-// ever reaching the LLM.
+// Cap per the Phase 4 spec's Guardrails — rejected before ever
+// reaching the LLM.
 export const jdParseRequestSchema = z.object({
-  jdText: z.string().min(1).max(5_000),
+  jdText: z.string().min(1).max(JD_TEXT_MAX_CHARS),
 });
 
 export type JdParseRequest = z.infer<typeof jdParseRequestSchema>;

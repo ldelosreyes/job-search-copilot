@@ -46,10 +46,18 @@ jobs:
         working-directory: web
         run: bunx playwright install --with-deps chromium
 
+      # Applies every migration file, not a hardcoded list of names —
+      # a hardcoded list here is exactly what let a real migration go
+      # missing from the actual Supabase project undetected (see
+      # WALKTHROUGH.md's "migration that was never actually applied").
+      # Relies on the 000N numeric prefix for ordering, same as the glob
+      # sorting bash already does by default.
       - name: Apply database migrations
         run: |
-          psql "$DATABASE_URL" -f api/supabase/migrations/0001_applications.sql
-          psql "$DATABASE_URL" -f api/supabase/migrations/0002_resume.sql
+          for f in api/supabase/migrations/*.sql; do
+            echo "Applying $f"
+            psql "$DATABASE_URL" -f "$f"
+          done
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
