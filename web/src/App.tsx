@@ -1,5 +1,6 @@
 import { ApplicationForm } from "@/components/application-form";
 import { ApplicationList } from "@/components/application-list";
+import { ResumeAndScoreStrip } from "@/components/resume-and-score-strip";
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
       </header>
 
       <div className="grid gap-6">
+        <ResumeAndScoreStrip />
         <ApplicationForm />
         <ApplicationList />
       </div>

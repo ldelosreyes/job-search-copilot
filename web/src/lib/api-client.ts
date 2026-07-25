@@ -20,8 +20,13 @@ import type { AppType } from "@job-search-copilot/api/src/index.ts";
  * when unset, this header is simply absent, which is exactly what the
  * middleware expects when API_TOKEN isn't configured server-side either.
  */
-export const apiClient = hc<AppType>(import.meta.env.VITE_API_URL ?? "/api", {
-  headers: import.meta.env.VITE_API_TOKEN
-    ? { Authorization: `Bearer ${import.meta.env.VITE_API_TOKEN}` }
-    : {},
-});
+export const apiBaseUrl = import.meta.env.VITE_API_URL ?? "/api";
+
+// Exported for the one request hc<AppType>() can't type-safely express —
+// PUT /resume's multipart file upload — so that raw fetch() call still
+// goes through the same base URL/auth as everything else.
+export const apiHeaders: Record<string, string> = import.meta.env.VITE_API_TOKEN
+  ? { Authorization: `Bearer ${import.meta.env.VITE_API_TOKEN}` }
+  : {};
+
+export const apiClient = hc<AppType>(apiBaseUrl, { headers: apiHeaders });
