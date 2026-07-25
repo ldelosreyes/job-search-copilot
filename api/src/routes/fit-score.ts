@@ -3,10 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { callChatModel } from "../lib/llm-client.js";
 import { getResumeContent } from "../db/resume-repo.js";
 import { fitScoreJsonSchema, fitScoreRequestSchema, fitScoreResultSchema } from "../schemas/fit-score.js";
-
-// A numeric score plus a short (2-3 sentence) rationale — more headroom
-// than /jd-parse's handful of fields, but still a small, bounded reply.
-const MAX_TOKENS = 400;
+import { FIT_SCORE_MAX_TOKENS, RESUME_TEXT_MAX_CHARS } from "../lib/ai-limits.js";
 
 const SYSTEM_PROMPT =
   "Score how well this resume fits this job description, 0-100, with a " +
@@ -33,13 +30,13 @@ export const fitScoreRoute = new Hono().post(
           { role: "system", content: SYSTEM_PROMPT },
           {
             role: "user",
-            // Unlike jdText (schema-capped at 5,000), extracted resume text has
-            // no upper bound — a large PDF/DOCX can blow the model's context.
-            content: `RESUME:\n${resumeResult.value.slice(0, 5_000)}\n\nJOB DESCRIPTION:\n${jdText}`,
+            // Unlike jdText (schema-capped), extracted resume text has no
+            // upper bound — a large PDF/DOCX can blow the model's context.
+            content: `RESUME:\n${resumeResult.value.slice(0, RESUME_TEXT_MAX_CHARS)}\n\nJOB DESCRIPTION:\n${jdText}`,
           },
         ],
         fitScoreJsonSchema,
-        MAX_TOKENS,
+        FIT_SCORE_MAX_TOKENS,
       );
     } catch {
       return c.json({ error: "AI demo temporarily unavailable, try again shortly" }, 502);

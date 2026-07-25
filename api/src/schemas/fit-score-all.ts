@@ -15,9 +15,12 @@ export const fitScoreAllLlmResponseSchema = z.object({
   results: z.array(fitScoreAllItemSchema),
 });
 
+// Scores get persisted onto each application row (see setFitScore in
+// applications-repo.ts) rather than returned as a separate results list
+// — the client just re-fetches GET /applications afterward to read them
+// back, so there's no second data source that could drift out of sync.
 export const fitScoreAllResponseSchema = z.object({
-  results: z.array(fitScoreAllItemSchema),
-  consideredCount: z.number().int().nonnegative(),
+  scoredCount: z.number().int().nonnegative(),
   skippedCount: z.number().int().nonnegative(),
 });
 

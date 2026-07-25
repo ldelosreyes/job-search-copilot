@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { JD_TEXT_MAX_CHARS } from "../lib/ai-limits.js";
 
-// Same ~5,000 char cap as /jd-parse's Guardrails.
+// Same cap as /jd-parse's Guardrails — both accept the same jdText.
 export const fitScoreRequestSchema = z.object({
-  jdText: z.string().min(1).max(5_000),
+  jdText: z.string().min(1).max(JD_TEXT_MAX_CHARS),
 });
 
 export type FitScoreRequest = z.infer<typeof fitScoreRequestSchema>;

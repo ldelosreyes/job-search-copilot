@@ -1,20 +1,15 @@
 import { Hono } from "hono";
 import { callChatModel } from "../lib/llm-client.js";
-import { getResumeContent } from "../db/resume-repo.js";
-import { listApplications } from "../db/applications-repo.js";
+import { getResumeContent, getResumeStatus } from "../db/resume-repo.js";
+import { listApplications, setFitScore } from "../db/applications-repo.js";
+import { computeFitScoreFingerprint } from "../lib/fit-score-fingerprint.js";
+import { fitScoreAllJsonSchema, fitScoreAllLlmResponseSchema } from "../schemas/fit-score-all.js";
 import {
-  fitScoreAllJsonSchema,
-  fitScoreAllLlmResponseSchema,
-} from "../schemas/fit-score-all.js";
-
-// Bounds worst-case prompt size the same way jdText's 5,000-char cap does
-// for a single JD — see the Phase 4 spec's Guardrails.
-const MAX_APPLICATIONS = 25;
-const JD_TEXT_CAP = 3_000;
-// One call scores up to 25 applications instead of /fit-score's one, so
-// this needs much more headroom than that route's 400 — 25 UUIDs plus
-// rationales can approach 3,000 tokens on its own, leaving no margin.
-const MAX_TOKENS = 4_000;
+  FIT_SCORE_ALL_JD_TEXT_CAP_CHARS,
+  FIT_SCORE_ALL_MAX_APPLICATIONS,
+  FIT_SCORE_ALL_MAX_TOKENS,
+  RESUME_TEXT_MAX_CHARS,
+} from "../lib/ai-limits.js";
 
 const SYSTEM_PROMPT =
   "Score how well this resume fits each of the listed job applications, " +
@@ -23,13 +18,17 @@ const SYSTEM_PROMPT =
   "id given, using that same set of ids.";
 
 export const fitScoreAllRoute = new Hono().post("/", async (c) => {
-  const resumeResult = await getResumeContent();
-  if (!resumeResult.ok) {
+  const [resumeContentResult, resumeStatusResult] = await Promise.all([
+    getResumeContent(),
+    getResumeStatus(),
+  ]);
+  if (!resumeContentResult.ok || !resumeStatusResult.ok) {
     return c.json({ error: "Failed to fetch resume" }, 500);
   }
-  if (!resumeResult.value) {
+  if (!resumeContentResult.value || !resumeStatusResult.value.updatedAt) {
     return c.json({ error: "Upload a resume to check fit" }, 422);
   }
+  const resumeUpdatedAt = resumeStatusResult.value.updatedAt;
 
   const applicationsResult = await listApplications();
   if (!applicationsResult.ok) {
@@ -37,20 +36,33 @@ export const fitScoreAllRoute = new Hono().post("/", async (c) => {
   }
 
   const withJd = applicationsResult.value.filter((application) => application.jdText !== null);
-  const considered = withJd.slice(0, MAX_APPLICATIONS);
   const noJdCount = applicationsResult.value.length - withJd.length;
-  const overCapCount = Math.max(0, withJd.length - MAX_APPLICATIONS);
+
+  // Skip applications whose cached score was already computed against
+  // the exact same jdText/roleTitle/resume — re-scoring them would just
+  // burn LLM budget on an unchanged answer.
+  const stale = withJd.filter((application) => {
+    const currentFingerprint = computeFitScoreFingerprint(
+      application.jdText!,
+      application.roleTitle,
+      resumeUpdatedAt,
+    );
+    return application.fitScoreFingerprint !== currentFingerprint;
+  });
+
+  const toScore = stale.slice(0, FIT_SCORE_ALL_MAX_APPLICATIONS);
+  const overCapCount = Math.max(0, stale.length - FIT_SCORE_ALL_MAX_APPLICATIONS);
   const skippedCount = noJdCount + overCapCount;
 
-  if (considered.length === 0) {
-    return c.json({ results: [], consideredCount: 0, skippedCount });
+  if (toScore.length === 0) {
+    return c.json({ scoredCount: 0, skippedCount });
   }
 
-  const applicationsBlock = considered
+  const applicationsBlock = toScore
     .map(
       (application) =>
         `ID: ${application.id}\nCompany: ${application.company}\nRole: ${application.roleTitle}\n` +
-        `JD:\n${(application.jdText ?? "").slice(0, JD_TEXT_CAP)}`,
+        `JD:\n${(application.jdText ?? "").slice(0, FIT_SCORE_ALL_JD_TEXT_CAP_CHARS)}`,
     )
     .join("\n\n---\n\n");
 
@@ -61,11 +73,11 @@ export const fitScoreAllRoute = new Hono().post("/", async (c) => {
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: `RESUME:\n${resumeResult.value.slice(0, 5_000)}\n\nAPPLICATIONS:\n${applicationsBlock}`,
+          content: `RESUME:\n${resumeContentResult.value.slice(0, RESUME_TEXT_MAX_CHARS)}\n\nAPPLICATIONS:\n${applicationsBlock}`,
         },
       ],
       fitScoreAllJsonSchema,
-      MAX_TOKENS,
+      FIT_SCORE_ALL_MAX_TOKENS,
     );
   } catch {
     return c.json({ error: "AI demo temporarily unavailable, try again shortly" }, 502);
@@ -76,16 +88,24 @@ export const fitScoreAllRoute = new Hono().post("/", async (c) => {
     return c.json({ error: "AI response was invalid, try again" }, 502);
   }
 
-  const consideredIds = new Set(considered.map((application) => application.id));
+  const toScoreById = new Map(toScore.map((application) => [application.id, application]));
   const resultIds = parsed.data.results.map((result) => result.applicationId);
   const idsMatch =
-    resultIds.length === considered.length && resultIds.every((id) => consideredIds.has(id));
+    resultIds.length === toScore.length && resultIds.every((id) => toScoreById.has(id));
 
   if (!idsMatch) {
     return c.json({ error: "AI response was invalid, try again" }, 502);
   }
 
-  const sorted = [...parsed.data.results].sort((a, b) => b.score - a.score);
+  for (const result of parsed.data.results) {
+    const application = toScoreById.get(result.applicationId)!;
+    const fingerprint = computeFitScoreFingerprint(
+      application.jdText!,
+      application.roleTitle,
+      resumeUpdatedAt,
+    );
+    await setFitScore(result.applicationId, result.score, result.rationale, fingerprint);
+  }
 
-  return c.json({ results: sorted, consideredCount: considered.length, skippedCount });
+  return c.json({ scoredCount: parsed.data.results.length, skippedCount });
 });
