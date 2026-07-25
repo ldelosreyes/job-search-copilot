@@ -98,13 +98,22 @@ see `.github/workflows/ci.yml`.
 
 ## Auth — two independent, mutually exclusive toggles
 
-**`requireAuth` (`api/src/middleware/auth.ts`)** — real per-user auth for
-the future production (personal-use) environment. Verifies a
-Supabase-issued access token on every `/applications/*` request, but only
-when `AUTH_ENABLED=true`; left unset, it's a no-op. When enabled, also
-requires `SUPABASE_URL` and `SUPABASE_ANON_KEY` (Project Settings → API
-— the anon/publishable key, not the service-role key). A matching
-frontend login screen is planned but not yet built.
+**`requireAuth` (`api/src/middleware/auth.ts`)** — real per-user auth,
+used to gate the whole sandbox demo to invited viewers only (e.g.
+employers handed a login ahead of an interview) rather than leaving it
+fully public. Verifies a Supabase-issued access token on every
+`/applications/*`-style request, but only when `AUTH_ENABLED=true`;
+left unset, it's a no-op. When enabled, also requires `SUPABASE_URL`
+and `SUPABASE_ANON_KEY` (Project Settings → API — the anon/publishable
+key, not the service-role key). The matching frontend login screen
+(`web/src/components/login-screen.tsx`) is gated by its own
+`VITE_AUTH_ENABLED` toggle — see Deploying below — and only ever calls
+`supabase.auth.signInWithPassword`; there's no self-service signup, the
+account is created directly in the Supabase dashboard and its
+credentials handed out manually. `SUPABASE_ANON_KEY` ships in the
+web app's public JS bundle once this is enabled, same tradeoff as
+`VITE_API_TOKEN` below — Row Level Security (`0004_enable_rls.sql`),
+not the key's secrecy, is what actually protects the data.
 
 **`requireApiToken` (`api/src/middleware/api-token.ts`)** — a much
 lighter, static shared-secret Bearer token gate for the *sandbox*
@@ -138,6 +147,12 @@ monorepo, so each package is deployed separately:
 3. Environment variable `VITE_API_URL` pointing at the deployed API
    project's URL — `api-client.ts` reads this at build time, falling
    back to the `/api` dev-proxy path when unset.
+4. To gate the deployment behind a login screen (see the Auth section
+   above): `VITE_AUTH_ENABLED=true`, `VITE_SUPABASE_URL`, and
+   `VITE_SUPABASE_ANON_KEY` (same project/key as the API's
+   `SUPABASE_URL`/`SUPABASE_ANON_KEY`). The matching `AUTH_ENABLED=true`
+   must also be set on the **API** project, or the frontend will show
+   a signed-in user while every API request 401s.
 
 **API (`api/`):**
 1. New Vercel project, **Root Directory: `api`**. With this root, Vercel's
