@@ -94,13 +94,19 @@ async function main() {
   }
 
   try {
-    console.log("Clearing applications table...");
-    await sql`delete from applications`;
+    // One transaction: if clearing `resume` fails (e.g. a migration
+    // drift like the missing-table incident this guarded against),
+    // the `applications` delete rolls back too, instead of leaving the
+    // demo empty until the next nightly run happens to succeed.
+    await sql.begin(async (trx) => {
+      console.log("Clearing applications table...");
+      await trx`delete from applications`;
 
-    // No seeded dummy resume — starts empty after every reset, same as
-    // the spec's "nothing works until a resume is uploaded" design.
-    console.log("Clearing resume table...");
-    await sql`delete from resume`;
+      // No seeded dummy resume — starts empty after every reset, same as
+      // the spec's "nothing works until a resume is uploaded" design.
+      console.log("Clearing resume table...");
+      await trx`delete from resume`;
+    });
 
     console.log(`Seeding ${seedApplications.length} sample applications...`);
     for (const input of seedApplications) {
