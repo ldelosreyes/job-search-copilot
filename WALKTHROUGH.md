@@ -612,3 +612,41 @@ original Node.js deploy — that line had simply been silently overridden
 by `bunVersion` ever since, and reverting let it take effect again.
 Confirmed nothing in `api/src` depends on Bun-only globals (no `Bun.*`
 usage outside test files) before making the change.
+
+## The migration that was never actually applied
+
+Separately, local dev and the sandbox demo both started showing "No
+applications yet" — not an error, just an empty list. `GET /health`
+returned 200 and CI was green, so this wasn't a repeat of the crash
+above; something more specific was wrong.
+
+Querying the real Supabase project directly (not just `bun run typecheck`
+or reading code) showed the actual state: `applications` had 0 rows, and
+`resume` didn't exist as a table at all, even though
+`api/supabase/migrations/0002_resume.sql` had been committed weeks
+earlier. The migration file existed in the repo and had presumably been
+run against local Postgres or CI's throwaway container at some point,
+but never against the real remote Supabase project this deployment
+actually uses.
+
+That gap turned destructive: the nightly `reset-sandbox.yml` cron runs
+`api/scripts/seed.ts`, which cleared `applications` first, then tried to
+clear `resume` — and crashed with `relation "resume" does not exist`
+before ever reseeding. The previous night's run left `applications`
+empty and exited non-zero, and every run since repeated the same
+failure, so the demo simply stayed empty.
+
+Fixed in two parts: applied the missing migration directly against the
+real project, then reseeded. Separately, wrapped `seed.ts`'s two
+`delete` statements in a single transaction (`sql.begin`) — so a future
+version of this exact failure mode (one delete succeeding, the next
+throwing) rolls the first one back too, instead of leaving the table
+wiped until the next successful nightly run.
+
+The underlying lesson: a migration file existing in the repo, and typechecking/CI
+being green, says nothing about whether it was ever actually run against
+the specific database a given environment connects to. `README.md`'s
+local setup instructions now say to run every file in
+`api/supabase/migrations/`, not just the first one, precisely because
+"only run the one the README mentions" is exactly how this drifted in
+the first place.
