@@ -58,9 +58,12 @@ jobs:
       # (e.g. it resolves extensionless relative imports, and provides
       # some browser globals Node doesn't). Vercel's Node.js Functions
       # runtime is stricter on both counts, which twice let bugs reach
-      # production undetected — see WALKTHROUGH.md. This compiles with
-      # tsc (matching Vercel's own build step) and invokes the actual
-      # exported handler from api/index.ts directly, the same way
+      # production undetected — see WALKTHROUGH.md. Vercel's own builder
+      # transpiles each file individually rather than running our tsc
+      # config, but tsc's project build produces the same on-disk shape
+      # (per-file .js output, import specifiers left untouched) so this
+      # is an equivalent proxy, not the literal same tool. It invokes the
+      # actual exported handler from api/index.ts directly, the same way
       # Vercel calls it, on the same Linux runner Vercel deploys to.
       - name: Smoke test API boot under Node.js (matches Vercel's runtime)
         run: bun run --cwd api smoke:node
