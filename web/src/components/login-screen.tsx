@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase-client";
 
 export function LoginScreen() {
@@ -27,8 +27,7 @@ export function LoginScreen() {
     <div className="mx-auto max-w-sm px-4 py-20">
       <Card>
         <CardHeader>
-          <CardTitle>Job Search Copilot</CardTitle>
-          <CardDescription>Sign in to view this demo.</CardDescription>
+          <CardTitle className="text-center">Job Search Copilot</CardTitle>
         </CardHeader>
         <CardContent className="pb-6">
           <form onSubmit={handleSubmit} className="grid gap-3">
