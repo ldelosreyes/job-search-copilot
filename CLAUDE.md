@@ -100,8 +100,14 @@ bun run --cwd web build   # production build
 ## Current state
 
 Core CRUD (applications: create/list/update/delete, discriminated-union
-status with a stage-specific `StageEditor` UI) is built and was verified
-end-to-end against a real local Postgres instance. Not yet done: real
-Supabase project wiring (currently only tested against local Postgres),
-live Vercel deployment, and any Phase 2 AI/LLM features (deliberately
-deferred — see `PLANNING.md`).
+status edited via `application-card.tsx`'s modal dialogs), the full
+AI/LLM feature set (resume upload + fit-scoring, JD-parsing via
+"Analyze with AI"), and per-user Supabase auth gating the live sandbox
+demo are all built and shipped — see `README.md`'s Features and Auth
+sections. Automated tests exist at every level (`bun:test` for API
+schemas/lib, Vitest for web components, Playwright E2E for the full
+CRUD flow) and run in CI. The sandbox runs on two independent Vercel
+projects against a real Supabase project, reset nightly — see
+`docs/deployment-journal.md` for the deploy history. Still deliberately
+out of scope: Trigger.dev, Langfuse, TanStack Router, and multi-user
+support — see `PLANNING.md`.
