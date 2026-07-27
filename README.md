@@ -64,7 +64,7 @@ DATABASE_URL=<your Supabase Postgres connection string>
 # database (via the Supabase SQL editor, or psql) — currently
 # 0001_applications.sql and 0002_resume.sql. Missing one isn't always
 # obvious: the app boots fine and only the affected feature breaks (see
-# the "resume table" incident in WALKTHROUGH.md).
+# the "resume table" incident in docs/deployment-journal.md).
 
 bun run dev:api   # http://localhost:3001
 bun run dev:web   # http://localhost:5173, proxies /api -> :3001
@@ -161,7 +161,8 @@ monorepo, so each package is deployed separately:
    default Node.js runtime (`api/api/index.ts` sets
    `config.runtime: "nodejs"` explicitly). Vercel's Bun runtime for
    functions was tried and reverted after it started crashing every
-   request in production — see `WALKTHROUGH.md` for the full incident.
+   request in production — see `docs/deployment-journal.md` for the full
+   incident.
 2. Environment variable `DATABASE_URL` set to the Supabase connection
    string (use the pooled "Transaction mode" URI, not the direct
    connection, since serverless functions open/close connections per
