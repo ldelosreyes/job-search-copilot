@@ -19,19 +19,16 @@ export function detectResumeFileType(filename: string, mimeType: string): Resume
 }
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  // Dynamic import, not a top-level one: pdf-parse pulls in pdfjs-dist,
-  // whose module-scope code unconditionally references the browser-only
-  // DOMMatrix global as a fallback when its native canvas polyfill isn't
-  // available. A top-level import would crash the entire app at cold
-  // start on Node (no DOMMatrix), for every route, not just PDF uploads.
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data: buffer });
-  try {
-    const result = await parser.getText();
-    return result.text.trim();
-  } finally {
-    await parser.destroy();
-  }
+  // Dynamic import: unpdf bundles PDF.js (~2.5MB, 10x mammoth's size).
+  // Deferring it keeps cold start fast for every other route on this
+  // single serverless function, since only /resume PDF uploads need it.
+  const { extractText } = await import("unpdf");
+  // unpdf rejects a Node `Buffer` outright even though it's a `Uint8Array`
+  // subclass — it checks for the exact class. Wrap it as a plain
+  // `Uint8Array` view over the same bytes, no copy.
+  const data = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  const { text } = await extractText(data, { mergePages: true });
+  return text.trim();
 }
 
 async function extractDocxText(buffer: Buffer): Promise<string> {

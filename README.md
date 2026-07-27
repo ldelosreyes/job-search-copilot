@@ -25,7 +25,7 @@ function by function.
   `rejected`, `withdrawn`); each stage's editor only shows the fields that
   make sense for it (interview round, offer amount, etc.).
 - **Resume upload** (`ResumeAndScoreStrip`) — upload a PDF or DOCX resume;
-  text is extracted server-side (`pdf-parse`/`mammoth`) and stored for
+  text is extracted server-side (`unpdf`/`mammoth`) and stored for
   fit-scoring. Replacing or removing the resume clears any cached fit
   scores, since they're no longer valid against a different resume.
 - **AI-assisted JD analysis ("Analyze with AI")** — paste a job description
@@ -53,7 +53,7 @@ job-search-copilot/
 │   │   │                applications, resume
 │   │   ├── lib/         llm-client (Cerebras/Groq chat calls with
 │   │   │                fallback), ai-limits, result (Result<T, E>),
-│   │   │                extract-resume-text (pdf-parse/mammoth),
+│   │   │                extract-resume-text (unpdf/mammoth),
 │   │   │                fit-score-fingerprint (skip-if-unchanged check)
 │   │   ├── middleware/  auth.ts (Supabase per-user auth), api-token.ts
 │   │   │                (shared-secret gate) — see Auth below

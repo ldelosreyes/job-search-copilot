@@ -189,13 +189,24 @@ them without a code change.
 
 ## The resume pipeline — `extract-resume-text.ts`, `db/resume-repo.ts`, `routes/resume.ts`
 
-`extractResumeText` pulls raw text out of an uploaded PDF (`pdf-parse`) or
+`extractResumeText` pulls raw text out of an uploaded PDF (`unpdf`) or
 DOCX (`mammoth`); `detectResumeFileType` identifies which by file
 extension first, MIME type as a fallback, since clients are inconsistent
-about setting `Content-Type` on multipart parts. `pdf-parse`'s import is
-dynamic, not top-level — it pulls in `pdfjs-dist`, which references the
-browser-only `DOMMatrix` global at module scope, and a top-level import
-would crash the entire app on Node cold start, not just PDF uploads.
+about setting `Content-Type` on multipart parts. `unpdf` was chosen over
+the more common `pdf-parse` specifically because it's built for
+serverless/edge runtimes: `pdf-parse` pulls in `pdfjs-dist`, which
+references the browser-only `DOMMatrix` global and tries to polyfill it
+via a native `@napi-rs/canvas` dependency that Vercel's build-time file
+tracer can't see (it's `require`d dynamically from deep inside a
+pre-bundled file) — so the polyfill silently didn't make it into the
+deployed bundle, and PDF uploads threw `ReferenceError: DOMMatrix is not
+defined` in production despite passing locally under Bun (which
+implements `DOMMatrix` natively, masking the issue). `unpdf` avoids the
+whole class of bug by mocking canvas internally rather than needing a
+native polyfill at all. `unpdf`'s import is still dynamic, not
+top-level — it bundles PDF.js (~2.5MB, 10x `mammoth`'s size), and this is
+a single serverless function handling every route, so deferring it keeps
+cold start fast for requests that never touch PDF uploads.
 
 The resume itself is a single-row table (`id = 1`) — one resume at a time,
 matching the single-user scope. `db/resume-repo.ts` splits reads into
