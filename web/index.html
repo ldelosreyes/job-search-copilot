@@ -5,6 +5,17 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Job Search Copilot</title>
+    <script>
+      // Applied before first paint (blocking, synchronous) to avoid a flash of the
+      // wrong theme — must mirror the logic in src/hooks/use-theme.ts exactly.
+      (function () {
+        var stored = localStorage.getItem("theme");
+        var isDark =
+          stored === "dark" ||
+          (stored !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (isDark) document.documentElement.classList.add("dark");
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
