@@ -450,3 +450,51 @@ local setup instructions now say to run every file in
 `api/supabase/migrations/`, not just the first one, precisely because
 "only run the one the README mentions" is exactly how this drifted in
 the first place.
+
+## `pdf-parse` worked locally, threw `DOMMatrix is not defined` in production
+
+Uploading a resume on the sandbox threw `ReferenceError: DOMMatrix is not
+defined` inside `pdfjs-dist`'s legacy build, with no corresponding code
+change to explain it ("it worked yesterday"). Every test and local run
+passed, because local dev and `bun test` both run under Bun — and Bun
+implements `DOMMatrix` (a browser API) natively as a global, masking the
+problem entirely.
+
+The deployed Vercel function runs on plain Node.js, which has no
+`DOMMatrix`. `pdf-parse` pulls in `pdfjs-dist`, which evaluates `new
+DOMMatrix()` at module scope and tries to polyfill it itself on Node via
+`@napi-rs/canvas` — but does so through a `require()` constructed
+dynamically deep inside its own pre-bundled file. Vercel's build-time
+file tracer can't see a dynamically-constructed `require()` buried in
+third-party code, so `@napi-rs/canvas` silently never made it into the
+deployed function bundle, the polyfill attempt failed (only a `warn()`),
+and the bare `new DOMMatrix()` call then threw. Confirmed via
+`vercel logs` against the actual failing deployment, not guesswork.
+
+First fix attempt was to polyfill `DOMMatrix`/`ImageData`/`Path2D`
+ourselves — adding `@napi-rs/canvas` as a direct dependency and setting
+the globals before importing `pdf-parse`, since a literal first-party
+import is traceable where a buried third-party `require()` isn't. It
+worked (verified by running the compiled output under plain `node`
+against a real PDF), but on reflection it was treating the symptom, not
+the cause: it still shipped a native binary dependency (platform-specific
+prebuilt binaries, a real arch-mismatch risk on serverless) and hardcoded
+exactly the three globals this version of `pdfjs-dist` happened to need,
+which a routine dependency bump could silently invalidate again.
+
+Replaced `pdf-parse` with `unpdf` instead — a PDF-text-extraction library
+built specifically for serverless/edge runtimes, which mocks canvas
+internally rather than needing a real one. This removes the whole bug
+class at the source: no native binary, no browser-global polyfilling, no
+dependency on a bundler tracing a hidden `require()` correctly. One
+adjustment needed along the way: `unpdf` rejects a Node `Buffer` outright
+even though it's technically a `Uint8Array` subclass (it checks the exact
+class), so the buffer is wrapped as a zero-copy `Uint8Array` view before
+being passed in.
+
+The underlying lesson: Bun and Node implement different sets of
+browser/Web globals, and a test suite or dev server that only ever runs
+under Bun cannot catch a Node-only failure. The existing `smoke:node` CI
+job exists for exactly this reason, but only exercises `GET /health` —
+it would not have caught this bug either, since it never touches the PDF
+extraction path.
