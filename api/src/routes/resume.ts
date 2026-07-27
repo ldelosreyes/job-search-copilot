@@ -37,7 +37,8 @@ export const resumeRoute = new Hono()
     try {
       const buffer = Buffer.from(await file.arrayBuffer());
       content = await extractResumeText(buffer, fileType);
-    } catch {
+    } catch (err) {
+      console.error("resume text extraction failed", err);
       return c.json({ error: "Couldn't read that file" }, 400);
     }
 
