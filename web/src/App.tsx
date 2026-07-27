@@ -2,6 +2,7 @@ import { ApplicationForm } from "@/components/application-form";
 import { ApplicationList } from "@/components/application-list";
 import { ResumeAndScoreStrip } from "@/components/resume-and-score-strip";
 import { LoginScreen } from "@/components/login-screen";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { authEnabled, supabase } from "@/lib/supabase-client";
 import { useSession } from "@/hooks/use-session";
@@ -22,11 +23,14 @@ function App() {
       <header className="mb-8">
         <div className="flex items-start justify-between">
           <h1 className="text-2xl font-semibold">Job Search Copilot</h1>
-          {authEnabled && (
-            <Button variant="ghost" size="sm" onClick={() => supabase!.auth.signOut()}>
-              Sign out
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            {authEnabled && (
+              <Button variant="ghost" size="sm" onClick={() => supabase!.auth.signOut()}>
+                Sign out
+              </Button>
+            )}
+          </div>
         </div>
         <p className="text-muted-foreground text-sm">
           Tracking applications for the Senior Full Stack / Software Engineer search.
