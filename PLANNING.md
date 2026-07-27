@@ -52,36 +52,41 @@ Chosen over a generic demo (todo app, JSON viewer) because:
   of a solid core.
 - **Langfuse** — needs an actual LLM call to trace. Nothing to observe
   until Phase 4 exists.
-- **AI/LLM features** (JD parsing, resume-fit scoring via embeddings) —
-  Phase 4, and intentionally not part of the days-long v1. Building it
-  later reuses the same Supabase + pgvector pattern already planned for
-  a separate, larger portfolio project (a RAG assistant), so it isn't
-  wasted scope — it's just sequenced after the thing that actually
-  needed to ship first: proof of current React/TypeScript fluency for a
-  live application already in process.
+- **AI/LLM features** (JD parsing, resume-fit scoring) — Phase 4, and
+  intentionally not part of the days-long v1. The plan at the time was
+  to build this on a Supabase + pgvector embeddings pattern shared with
+  a separate, larger portfolio project (a RAG assistant). **Shipped —
+  and built differently than planned**: fit-scoring turned out not to
+  need embeddings/pgvector at all — a direct LLM chat call (Cerebras,
+  Groq fallback) scoring the JD text against the resume text in one
+  prompt was simpler and sufficient, with a SHA-256 fingerprint of
+  jdText/roleTitle/resume-updated-at to skip re-scoring an unchanged
+  pair. See `WALKTHROUGH.md`'s "Fit-score fingerprinting" section.
 
-**Phased roadmap after v1** — each phase is sequenced deliberately after
-the one before it is solid, not built in parallel with it:
-- **Phase 2 — automated tests.** No test suite exists yet; typecheck,
-  lint, and a CI boot smoke-test are the only automated checks today.
-  Planned: Vitest unit tests for the Zod schemas (the discriminated
-  union is exactly the kind of logic that benefits from a regression
-  test), plus a couple of Playwright E2E tests for the core
-  create/update/delete flow, wired into the existing CI workflow.
-- **Phase 3 — auth for the production (personal-use) environment.** The
-  public sandbox deployment intentionally has no auth (seeded fake
-  data, nothing to protect). The separate production environment — the
-  one actually used to track real applications — needs a real login
-  screen backed by Supabase Auth (email/password, real sessions), not
-  a shared-secret token. Still single-user: one account, not user
-  management. **Multi-user support and an admin dashboard were
-  considered and explicitly dropped** — this project's scope is a
-  personal tool proving fluency for a specific job search, not a
-  multi-tenant product, and that kind of scope has no natural finish
-  line — the same reasoning behind deferring Trigger.dev and Langfuse
-  above.
-- **Phase 4 — LLM/AI integration.** JD parsing, resume-fit scoring via
-  embeddings, described above.
+**Phased roadmap after v1** — each phase was sequenced deliberately after
+the one before it was solid, not built in parallel with it. **All three
+have since shipped** — see `README.md`'s Features/Testing/Auth sections
+and `docs/deployment-journal.md`; kept below as a record of the original
+plan and, in Phase 3's case, how it actually turned out:
+- **Phase 2 — automated tests.** Planned as Vitest unit tests for the
+  Zod schemas plus Playwright E2E for create/update/delete. Shipped
+  close to plan, with one change: the API's unit tests use `bun:test`
+  instead of Vitest (already Bun-native, no extra dependency, and the
+  schema tests don't need a DOM) — Vitest is still used for `web`'s
+  component tests, where it does need one.
+- **Phase 3 — auth.** Originally planned as a separate personal-use
+  "production" deployment distinct from the public sandbox. **Built
+  differently**: rather than standing up a second environment, the
+  same `AUTH_ENABLED`/`VITE_AUTH_ENABLED` toggle was added directly to
+  the sandbox deployment, so the one live demo can be switched between
+  fully public (seeded fake data, no login) and gated behind real
+  Supabase-issued credentials (e.g. handed to an employer ahead of an
+  interview) without needing a second Vercel/Supabase project pair.
+  Still single-user, no self-service signup — multi-user support and
+  an admin dashboard were considered and explicitly dropped, same
+  reasoning as deferring Trigger.dev and Langfuse above.
+- **Phase 4 — LLM/AI integration.** JD parsing, resume-fit scoring,
+  described above.
 
 The point of listing what's deferred, not just what's built, is that
 scoping — deciding what *not* to build yet — is itself part of what a

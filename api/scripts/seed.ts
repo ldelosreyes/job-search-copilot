@@ -5,8 +5,8 @@ import type { CreateApplicationInput } from "../src/schemas/application";
 /**
  * Sandbox seed data — one sample application per status stage, so the
  * demo shows every branch of the discriminated union (StatusBadge,
- * StageEditor). Run nightly against the sandbox database only; never
- * point this at a real/production DATABASE_URL.
+ * ApplicationCard's stage editor). Run nightly against the sandbox
+ * database only; never point this at a real/production DATABASE_URL.
  */
 const seedApplications: CreateApplicationInput[] = [
   {
