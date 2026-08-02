@@ -1,3 +1,4 @@
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useApplicationFitScore } from "@/hooks/use-application-fit-score";
 import { useResumeStatus } from "@/hooks/use-resume";
@@ -41,7 +42,16 @@ export function FitScoreButton({
           disabled={Boolean(disabledReason) || fitScore.isPending}
           onClick={() => fitScore.mutate(id)}
         >
-          {fitScore.isPending ? "Scoring..." : hasScore ? "Re-score" : "Score fit"}
+          {fitScore.isPending ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+              Scoring...
+            </>
+          ) : hasScore ? (
+            "Re-score"
+          ) : (
+            "Score fit"
+          )}
         </Button>
         {disabledReason && (
           <span

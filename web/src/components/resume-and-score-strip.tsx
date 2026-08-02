@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, FileUp, Trash2 } from "lucide-react";
+import { Check, FileUp, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   useDeleteResume,
@@ -223,7 +223,10 @@ export function ResumeAndScoreStrip() {
               onClick={() => fitScoreAll.mutate()}
             >
               {fitScoreAll.isPending ? (
-                "Scoring..."
+                <>
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  Scoring...
+                </>
               ) : scoresUpToDate ? (
                 <>
                   Scores up to date

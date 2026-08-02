@@ -88,7 +88,9 @@ describe("FitScoreButton", () => {
 
     render(<FitScoreButton id="1" hasJd={true} hasScore={false} />);
 
-    expect(screen.getByRole("button", { name: "Scoring..." })).toBeDisabled();
+    const button = screen.getByRole("button", { name: "Scoring..." });
+    expect(button).toBeDisabled();
+    expect(button.querySelector("svg.animate-spin")).toBeInTheDocument();
   });
 
   test("shows the error message on failure", () => {

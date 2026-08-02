@@ -41,6 +41,21 @@ const mockUseApplications = vi.mocked(useApplications);
 const mockUseDeleteApplication = vi.mocked(useDeleteApplication);
 const mockUseUpdateApplication = vi.mocked(useUpdateApplication);
 
+describe("ApplicationList loading state", () => {
+  test("shows skeleton cards and an accessible loading status while fetching", () => {
+    mockUseApplications.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    } as unknown as ReturnType<typeof useApplications>);
+
+    const { container } = render(<ApplicationList />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading applications…");
+    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+  });
+});
+
 describe("ApplicationList card editing", () => {
   const updateMutate = vi.fn();
   const deleteMutate = vi.fn();
