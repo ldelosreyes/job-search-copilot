@@ -19,7 +19,12 @@ export function useApplicationFitScore() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      // Returned (not fire-and-forget) so isPending — and therefore the
+      // "Scoring..." button state — stays true until the applications list
+      // has actually refetched with the new fit score, instead of the
+      // loader disappearing a beat before the real score/description
+      // appears.
+      return queryClient.invalidateQueries({ queryKey: ["applications"] });
     },
   });
 }
