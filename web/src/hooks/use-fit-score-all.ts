@@ -23,6 +23,7 @@ export function useFitScoreAllStatus() {
 export function useFitScoreAll() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: ["fit-score-all"],
     mutationFn: async () => {
       const res = await apiClient["fit-score-all"].$post();
       if (!res.ok) {

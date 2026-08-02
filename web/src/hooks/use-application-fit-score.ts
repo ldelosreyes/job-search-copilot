@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/api-client";
 export function useApplicationFitScore() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: ["fit-score"],
     mutationFn: async (id: string) => {
       const res = await apiClient.applications[":id"]["fit-score"].$post({ param: { id } });
       if (!res.ok) {

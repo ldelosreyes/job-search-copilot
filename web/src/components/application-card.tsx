@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useMutationState } from "@tanstack/react-query";
 import { Pencil, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { FitScoreButton } from "@/components/fit-score-button";
 import { StatusBadge } from "@/components/status-badge";
 import { useDeleteApplication, useUpdateApplication } from "@/hooks/use-applications";
@@ -438,6 +440,29 @@ export function ApplicationCard({
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // Both FitScoreButton (this card) and the "Score applications" bulk action
+  // (resume-and-score-strip.tsx) mutate this application's fit score from
+  // outside this component — watch the shared mutation cache instead of
+  // lifting either mutation up, so the result area can show a loading state
+  // regardless of which one triggered it.
+  const isScoringThisApplication =
+    useMutationState({
+      filters: {
+        mutationKey: ["fit-score"],
+        predicate: (mutation) =>
+          mutation.state.status === "pending" &&
+          mutation.state.variables === application.id,
+      },
+      select: () => true,
+    }).length > 0;
+  const isScoringAll =
+    useMutationState({
+      filters: { mutationKey: ["fit-score-all"], status: "pending" },
+      select: () => true,
+    }).length > 0;
+  const isFitResultLoading =
+    Boolean(application.jdText) && (isScoringThisApplication || isScoringAll);
+
   function closeEditor() {
     onCancel();
     requestAnimationFrame(() => {
@@ -507,19 +532,23 @@ export function ApplicationCard({
             hasJd={Boolean(application.jdText)}
             hasScore={application.fitScore !== null}
           />
-          {application.fitScore !== null && (
-            <p className="text-sm">
-              Fit: <strong>{application.fitScore}</strong>{" "}
-              <span className={scoreBand(application.fitScore).text}>
-                — {scoreBand(application.fitScore).label}
-              </span>
-              {application.fitRationale && (
-                <span className="text-muted-foreground">
-                  {" "}
-                  · {application.fitRationale}
+          {isFitResultLoading ? (
+            <Skeleton className="h-4 w-56" role="status" aria-label="Scoring fit…" />
+          ) : (
+            application.fitScore !== null && (
+              <p className="text-sm">
+                Fit: <strong>{application.fitScore}</strong>{" "}
+                <span className={scoreBand(application.fitScore).text}>
+                  — {scoreBand(application.fitScore).label}
                 </span>
-              )}
-            </p>
+                {application.fitRationale && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {application.fitRationale}
+                  </span>
+                )}
+              </p>
+            )
           )}
         </div>
       </CardContent>
