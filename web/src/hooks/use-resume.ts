@@ -60,7 +60,11 @@ export function useDeleteResume() {
         filename: null,
         updatedAt: null,
       });
-      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      // Returned (not fire-and-forget) so isPending — and the confirm
+      // dialog's own onSuccess, which closes it — waits for the applications
+      // list to actually refetch with cleared fit scores, instead of the
+      // dialog closing a beat before the stale "Fit: …" line disappears.
+      return queryClient.invalidateQueries({ queryKey: ["applications"] });
     },
   });
 }
