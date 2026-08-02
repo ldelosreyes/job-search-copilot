@@ -10,10 +10,12 @@ export function FitScoreButton({
   id,
   hasJd,
   hasScore,
+  disabledByBulkScore = false,
 }: {
   id: string;
   hasJd: boolean;
   hasScore: boolean;
+  disabledByBulkScore?: boolean;
 }) {
   const fitScore = useApplicationFitScore();
   const resumeStatus = useResumeStatus();
@@ -26,7 +28,9 @@ export function FitScoreButton({
         ? "Resume availability could not be checked."
         : !resumeStatus.data?.filename
           ? "Upload a resume before scoring fit."
-          : null;
+          : disabledByBulkScore
+            ? "Already up to date — scoring all applications now."
+            : null;
 
   return (
     <div className="grid gap-1">

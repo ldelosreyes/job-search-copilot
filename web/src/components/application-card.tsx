@@ -18,6 +18,7 @@ import type {
   Application,
   ApplicationSource,
   ApplicationStatus,
+  ApplicationWithFitScoreStatus,
 } from "@job-search-copilot/api/src/schemas/application.ts";
 
 const SOURCES: { value: ApplicationSource; label: string }[] = [
@@ -428,7 +429,7 @@ export function ApplicationCard({
   onEdit,
   onCancel,
 }: {
-  application: Application;
+  application: ApplicationWithFitScoreStatus;
   isEditing: boolean;
   onEdit: () => void;
   onCancel: () => void;
@@ -460,8 +461,14 @@ export function ApplicationCard({
       filters: { mutationKey: ["fit-score-all"], status: "pending" },
       select: () => true,
     }).length > 0;
+  // A bulk run skips applications whose cached score is already up to date
+  // (server-computed application.needsFitScore, same fingerprint check
+  // fit-score-all.ts uses) — only show the skeleton for ones the bulk run
+  // will actually touch.
   const isFitResultLoading =
-    Boolean(application.jdText) && (isScoringThisApplication || isScoringAll);
+    Boolean(application.jdText) &&
+    (isScoringThisApplication || (isScoringAll && application.needsFitScore));
+  const isSkippedByBulkScore = isScoringAll && !application.needsFitScore;
 
   function closeEditor() {
     onCancel();
@@ -531,6 +538,7 @@ export function ApplicationCard({
             id={application.id}
             hasJd={Boolean(application.jdText)}
             hasScore={application.fitScore !== null}
+            disabledByBulkScore={isSkippedByBulkScore}
           />
           {isFitResultLoading ? (
             <Skeleton className="h-4 w-56" role="status" aria-label="Scoring fit…" />

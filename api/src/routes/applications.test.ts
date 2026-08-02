@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { Application } from "../schemas/application";
 import { computeFitScoreFingerprint } from "../lib/fit-score-fingerprint";
+import { FIT_SCORE_ALL_MAX_APPLICATIONS } from "../lib/ai-limits";
 
-// Scoped to the new POST /:id/fit-score route only — the rest of this
-// file's CRUD routes (GET/POST/PATCH/DELETE /applications) have no unit
-// tests yet, a pre-existing gap, not introduced by this change.
+// Scoped to GET / and POST /:id/fit-score — the rest of this file's CRUD
+// routes (POST/PATCH/DELETE /applications) have no unit tests yet, a
+// pre-existing gap, not introduced by this change.
 
 process.env.CEREBRAS_API_KEY ??= "test-cerebras-key";
 process.env.GROQ_API_KEY ??= "test-groq-key";
@@ -22,6 +23,7 @@ const getResumeSnapshotMock = mock(async () => ({
   value: null as { content: string; filename: string; updatedAt: string } | null,
 }));
 const getApplicationMock = mock(async () => ({ ok: true as const, value: null as Application | null }));
+const listApplicationsMock = mock(async () => ({ ok: true as const, value: [] as Application[] }));
 const setFitScoreMock = mock(
   async (): Promise<{ ok: true; value: Application | null }> => ({ ok: true, value: null }),
 );
@@ -37,7 +39,7 @@ mock.module("../db/resume-repo", () => ({
 }));
 
 mock.module("../db/applications-repo", () => ({
-  listApplications: mock(async () => ({ ok: true, value: [] })),
+  listApplications: listApplicationsMock,
   getApplication: getApplicationMock,
   createApplication: mock(async () => ({ ok: true, value: null })),
   updateApplication: mock(async () => ({ ok: true, value: null })),
@@ -72,6 +74,161 @@ const ID_A = "11111111-1111-1111-1111-111111111111";
 function scoreFit(id: string) {
   return applicationsRoute.request(`/${id}/fit-score`, { method: "POST" });
 }
+
+describe("GET /applications", () => {
+  beforeEach(() => {
+    listApplicationsMock.mockClear();
+    getResumeStatusMock.mockClear();
+  });
+
+  test("marks an application false when no resume has been uploaded", async () => {
+    getResumeStatusMock.mockResolvedValueOnce({
+      ok: true,
+      value: { filename: null, updatedAt: null },
+    });
+    listApplicationsMock.mockResolvedValueOnce({
+      ok: true,
+      value: [makeApplication({ id: ID_A })],
+    });
+
+    const res = await applicationsRoute.request("/");
+
+    expect(await res.json()).toEqual([{ ...makeApplication({ id: ID_A }), needsFitScore: false }]);
+  });
+
+  test("marks an application true when it has never been scored", async () => {
+    getResumeStatusMock.mockResolvedValueOnce({
+      ok: true,
+      value: { filename: "resume.pdf", updatedAt: RESUME_UPDATED_AT },
+    });
+    listApplicationsMock.mockResolvedValueOnce({
+      ok: true,
+      value: [makeApplication({ id: ID_A, fitScoreFingerprint: null })],
+    });
+
+    const res = await applicationsRoute.request("/");
+
+    const [application] = (await res.json()) as Array<Record<string, unknown>>;
+    expect(application).toMatchObject({ needsFitScore: true });
+  });
+
+  test("marks an application false when its cached score's fingerprint still matches", async () => {
+    const jdText = "We need a staff engineer.";
+    const roleTitle = "Staff Engineer";
+    getResumeStatusMock.mockResolvedValueOnce({
+      ok: true,
+      value: { filename: "resume.pdf", updatedAt: RESUME_UPDATED_AT },
+    });
+    listApplicationsMock.mockResolvedValueOnce({
+      ok: true,
+      value: [
+        makeApplication({
+          id: ID_A,
+          jdText,
+          roleTitle,
+          fitScore: 82,
+          fitScoreFingerprint: computeFitScoreFingerprint(jdText, roleTitle, RESUME_UPDATED_AT),
+        }),
+      ],
+    });
+
+    const res = await applicationsRoute.request("/");
+
+    const [application] = (await res.json()) as Array<Record<string, unknown>>;
+    expect(application).toMatchObject({ needsFitScore: false });
+  });
+
+  test("marks an application true when its JD changed since it was scored", async () => {
+    getResumeStatusMock.mockResolvedValueOnce({
+      ok: true,
+      value: { filename: "resume.pdf", updatedAt: RESUME_UPDATED_AT },
+    });
+    listApplicationsMock.mockResolvedValueOnce({
+      ok: true,
+      value: [
+        makeApplication({
+          id: ID_A,
+          jdText: "A brand new JD.",
+          fitScore: 82,
+          fitScoreFingerprint: computeFitScoreFingerprint(
+            "The old JD.",
+            "Staff Engineer",
+            RESUME_UPDATED_AT,
+          ),
+        }),
+      ],
+    });
+
+    const res = await applicationsRoute.request("/");
+
+    const [application] = (await res.json()) as Array<Record<string, unknown>>;
+    expect(application).toMatchObject({ needsFitScore: true });
+  });
+
+  test("marks an application true when the resume was replaced since it was scored", async () => {
+    const jdText = "We need a staff engineer.";
+    const roleTitle = "Staff Engineer";
+    getResumeStatusMock.mockResolvedValueOnce({
+      ok: true,
+      value: { filename: "resume.pdf", updatedAt: "2026-02-01T00:00:00.000Z" },
+    });
+    listApplicationsMock.mockResolvedValueOnce({
+      ok: true,
+      value: [
+        makeApplication({
+          id: ID_A,
+          jdText,
+          roleTitle,
+          fitScore: 82,
+          fitScoreFingerprint: computeFitScoreFingerprint(jdText, roleTitle, RESUME_UPDATED_AT),
+        }),
+      ],
+    });
+
+    const res = await applicationsRoute.request("/");
+
+    const [application] = (await res.json()) as Array<Record<string, unknown>>;
+    expect(application).toMatchObject({ needsFitScore: true });
+  });
+
+  test("marks an application without a JD false, even if unscored", async () => {
+    getResumeStatusMock.mockResolvedValueOnce({
+      ok: true,
+      value: { filename: "resume.pdf", updatedAt: RESUME_UPDATED_AT },
+    });
+    listApplicationsMock.mockResolvedValueOnce({
+      ok: true,
+      value: [makeApplication({ id: ID_A, jdText: null, fitScoreFingerprint: null })],
+    });
+
+    const res = await applicationsRoute.request("/");
+
+    const [application] = (await res.json()) as Array<Record<string, unknown>>;
+    expect(application).toMatchObject({ needsFitScore: false });
+  });
+
+  test("marks only the first FIT_SCORE_ALL_MAX_APPLICATIONS stale applications true — a bulk run won't touch the rest this round", async () => {
+    getResumeStatusMock.mockResolvedValueOnce({
+      ok: true,
+      value: { filename: "resume.pdf", updatedAt: RESUME_UPDATED_AT },
+    });
+    const staleApplications = Array.from({ length: FIT_SCORE_ALL_MAX_APPLICATIONS + 1 }, (_, index) =>
+      makeApplication({
+        id: `11111111-1111-1111-1111-${String(index).padStart(12, "0")}`,
+        fitScoreFingerprint: null,
+      }),
+    );
+    listApplicationsMock.mockResolvedValueOnce({ ok: true, value: staleApplications });
+
+    const res = await applicationsRoute.request("/");
+
+    const applications = (await res.json()) as Array<Record<string, unknown>>;
+    const withinCap = applications.slice(0, FIT_SCORE_ALL_MAX_APPLICATIONS);
+    const overCap = applications.slice(FIT_SCORE_ALL_MAX_APPLICATIONS);
+    expect(withinCap.every((application) => application.needsFitScore === true)).toBe(true);
+    expect(overCap.every((application) => application.needsFitScore === false)).toBe(true);
+  });
+});
 
 describe("POST /applications/:id/fit-score", () => {
   beforeEach(() => {
