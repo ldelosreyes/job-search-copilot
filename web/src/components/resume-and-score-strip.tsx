@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, FileUp, Trash2 } from "lucide-react";
+import { Check, FileUp, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   useDeleteResume,
@@ -99,7 +99,13 @@ export function ResumeAndScoreStrip() {
   const fitScoreStatus = useFitScoreAllStatus();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
-  const [isConfirmingRemove, setIsConfirmingRemove] = useState(false);
+  // Captured on open rather than read live from resumeStatus.data.filename —
+  // that field is nulled out synchronously as soon as the delete mutation's
+  // onSuccess runs, which would otherwise unmount this dialog (and its
+  // useDeleteResume hook instance, dropping its onClose callback) well
+  // before the applications list has actually refetched with cleared fit
+  // scores.
+  const [removingFilename, setRemovingFilename] = useState<string | null>(null);
 
   const hasResume = Boolean(resumeStatus.data?.filename);
   const scoreStatus = fitScoreStatus.data;
@@ -123,7 +129,7 @@ export function ResumeAndScoreStrip() {
   const scoreTooltipId = "score-applications-disabled";
 
   function closeRemoveDialog() {
-    setIsConfirmingRemove(false);
+    setRemovingFilename(null);
     requestAnimationFrame(() => {
       stripRef.current
         ?.querySelector<HTMLButtonElement>("[data-remove-resume]")
@@ -188,7 +194,7 @@ export function ResumeAndScoreStrip() {
                 aria-label="Remove resume"
                 title="Remove resume"
                 disabled={uploadResume.isPending}
-                onClick={() => setIsConfirmingRemove(true)}
+                onClick={() => setRemovingFilename(resumeStatus.data!.filename!)}
               >
                 <Trash2 className="size-4" aria-hidden="true" />
               </Button>
@@ -223,7 +229,10 @@ export function ResumeAndScoreStrip() {
               onClick={() => fitScoreAll.mutate()}
             >
               {fitScoreAll.isPending ? (
-                "Scoring..."
+                <>
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  Scoring...
+                </>
               ) : scoresUpToDate ? (
                 <>
                   Scores up to date
@@ -245,11 +254,8 @@ export function ResumeAndScoreStrip() {
           </div>
         </div>
       </div>
-      {isConfirmingRemove && resumeStatus.data?.filename && (
-        <RemoveResumeDialog
-          filename={resumeStatus.data.filename}
-          onClose={closeRemoveDialog}
-        />
+      {removingFilename && (
+        <RemoveResumeDialog filename={removingFilename} onClose={closeRemoveDialog} />
       )}
     </>
   );

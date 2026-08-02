@@ -2,9 +2,12 @@ import { Hono } from "hono";
 import { callChatModel } from "../lib/llm-client.js";
 import { getResumeSnapshot, getResumeStatus } from "../db/resume-repo.js";
 import { listApplications, setFitScore } from "../db/applications-repo.js";
-import { computeFitScoreFingerprint } from "../lib/fit-score-fingerprint.js";
+import {
+  computeFitScoreFingerprint,
+  needsFitScore,
+  selectBulkScoreCandidates,
+} from "../lib/fit-score-fingerprint.js";
 import { fitScoreAllJsonSchema, fitScoreAllLlmResponseSchema } from "../schemas/fit-score-all.js";
-import type { Application } from "../schemas/application.js";
 import {
   FIT_SCORE_ALL_JD_TEXT_CAP_CHARS,
   FIT_SCORE_ALL_MAX_APPLICATIONS,
@@ -17,14 +20,6 @@ const SYSTEM_PROMPT =
   "0-100 each, with a short, specific rationale (2-3 sentences) naming " +
   "concrete overlaps and gaps. Return exactly one result per application " +
   "id given, using that same set of ids.";
-
-function needsFitScore(application: Application, resumeUpdatedAt: string) {
-  return (
-    application.jdText !== null &&
-    application.fitScoreFingerprint !==
-      computeFitScoreFingerprint(application.jdText, application.roleTitle, resumeUpdatedAt)
-  );
-}
 
 export const fitScoreAllRoute = new Hono().get("/", async (c) => {
   const [resumeStatusResult, applicationsResult] = await Promise.all([
@@ -39,9 +34,7 @@ export const fitScoreAllRoute = new Hono().get("/", async (c) => {
     (application) => application.jdText !== null,
   ).length;
   const scoreableCount = resumeStatusResult.value.updatedAt
-    ? applicationsResult.value.filter((application) =>
-        needsFitScore(application, resumeStatusResult.value.updatedAt!),
-      ).length
+    ? selectBulkScoreCandidates(applicationsResult.value, resumeStatusResult.value.updatedAt).length
     : 0;
 
   return c.json({ eligibleCount, scoreableCount });
@@ -69,7 +62,7 @@ export const fitScoreAllRoute = new Hono().get("/", async (c) => {
   // burn LLM budget on an unchanged answer.
   const stale = withJd.filter((application) => needsFitScore(application, resumeUpdatedAt));
 
-  const toScore = stale.slice(0, FIT_SCORE_ALL_MAX_APPLICATIONS);
+  const toScore = selectBulkScoreCandidates(applicationsResult.value, resumeUpdatedAt);
   const overCapCount = Math.max(0, stale.length - FIT_SCORE_ALL_MAX_APPLICATIONS);
   const skippedCount = noJdCount + overCapCount;
 

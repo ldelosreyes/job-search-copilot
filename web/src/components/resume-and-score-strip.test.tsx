@@ -173,6 +173,21 @@ describe("ResumeAndScoreStrip", () => {
     expect(fitScoreAllMutate).toHaveBeenCalledTimes(1);
   });
 
+  test("shows a spinner alongside the disabled 'Scoring...' state while scoring all", () => {
+    mockHasResume();
+    mockUseFitScoreAll.mockReturnValue({
+      mutate: fitScoreAllMutate,
+      isPending: true,
+      isError: false,
+    } as unknown as ReturnType<typeof useFitScoreAll>);
+
+    render(<ResumeAndScoreStrip />);
+
+    const button = screen.getByRole("button", { name: "Scoring..." });
+    expect(button).toBeDisabled();
+    expect(button.querySelector("svg.animate-spin")).toBeInTheDocument();
+  });
+
   test("uploading a file calls the upload mutation", async () => {
     mockNoResume();
     const user = userEvent.setup();

@@ -23,6 +23,7 @@ export function useFitScoreAllStatus() {
 export function useFitScoreAll() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: ["fit-score-all"],
     mutationFn: async () => {
       const res = await apiClient["fit-score-all"].$post();
       if (!res.ok) {
@@ -36,7 +37,12 @@ export function useFitScoreAll() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      // Returned (not fire-and-forget) so isPending — and therefore the
+      // "Scoring..." button state and each card's "Scoring fit…" skeleton —
+      // stays true until the applications list has actually refetched with
+      // the new fit scores, instead of the loader disappearing a beat
+      // before the real score/description appears.
+      return queryClient.invalidateQueries({ queryKey: ["applications"] });
     },
   });
 }

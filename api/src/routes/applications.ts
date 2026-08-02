@@ -13,9 +13,9 @@ import {
   deleteApplication,
   setFitScore,
 } from "../db/applications-repo.js";
-import { getResumeSnapshot } from "../db/resume-repo.js";
+import { getResumeSnapshot, getResumeStatus } from "../db/resume-repo.js";
 import { callChatModel } from "../lib/llm-client.js";
-import { computeFitScoreFingerprint } from "../lib/fit-score-fingerprint.js";
+import { computeFitScoreFingerprint, selectBulkScoreCandidates } from "../lib/fit-score-fingerprint.js";
 import { fitScoreJsonSchema, fitScoreResultSchema } from "../schemas/fit-score.js";
 import { FIT_SCORE_MAX_TOKENS, JD_TEXT_MAX_CHARS, RESUME_TEXT_MAX_CHARS } from "../lib/ai-limits.js";
 
@@ -27,11 +27,30 @@ const FIT_SCORE_SYSTEM_PROMPT =
 
 export const applicationsRoute = new Hono()
   .get("/", async (c) => {
-    const result = await listApplications();
-    if (!result.ok) {
+    const [applicationsResult, resumeStatusResult] = await Promise.all([
+      listApplications(),
+      getResumeStatus(),
+    ]);
+    if (!applicationsResult.ok || !resumeStatusResult.ok) {
       return c.json({ error: "Failed to list applications" }, 500);
     }
-    return c.json(result.value);
+    const resumeUpdatedAt = resumeStatusResult.value.updatedAt;
+    // Only the applications a bulk run would actually score this round count
+    // as needsFitScore — otherwise a card past FIT_SCORE_ALL_MAX_APPLICATIONS
+    // would show a loading/disabled state for a re-score that won't happen.
+    const candidateIds = resumeUpdatedAt
+      ? new Set(
+          selectBulkScoreCandidates(applicationsResult.value, resumeUpdatedAt).map(
+            (application) => application.id,
+          ),
+        )
+      : new Set<string>();
+    return c.json(
+      applicationsResult.value.map((application) => ({
+        ...application,
+        needsFitScore: candidateIds.has(application.id),
+      })),
+    );
   })
 
   .get("/:id", zValidator("param", idParamSchema), async (c) => {

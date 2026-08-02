@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ApplicationCard } from "@/components/application-card";
+import { ApplicationCardSkeleton } from "@/components/application-card-skeleton";
 import { useApplications } from "@/hooks/use-applications";
 
 export function ApplicationList() {
@@ -7,7 +8,14 @@ export function ApplicationList() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   if (isLoading) {
-    return <p className="text-muted-foreground text-sm">Loading applications…</p>;
+    return (
+      <div className="grid gap-3" role="status">
+        <span className="sr-only">Loading applications…</span>
+        <ApplicationCardSkeleton aria-hidden="true" />
+        <ApplicationCardSkeleton aria-hidden="true" />
+        <ApplicationCardSkeleton aria-hidden="true" />
+      </div>
+    );
   }
 
   if (isError) {

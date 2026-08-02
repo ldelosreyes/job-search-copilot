@@ -127,6 +127,18 @@ describe("GET /fit-score-all", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ eligibleCount: 1, scoreableCount: 1 });
   });
+
+  test("caps scoreableCount at 25 — a bulk run won't score more than that in one go", async () => {
+    const stale = Array.from({ length: 27 }, (_, i) =>
+      makeApplication({ id: `33333333-3333-3333-3333-3333333333${String(i).padStart(2, "0")}` }),
+    );
+    listApplicationsMock.mockResolvedValueOnce({ ok: true, value: stale });
+
+    const res = await get();
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ eligibleCount: 27, scoreableCount: 25 });
+  });
 });
 
 describe("POST /fit-score-all", () => {

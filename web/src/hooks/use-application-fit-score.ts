@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/api-client";
 export function useApplicationFitScore() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: ["fit-score"],
     mutationFn: async (id: string) => {
       const res = await apiClient.applications[":id"]["fit-score"].$post({ param: { id } });
       if (!res.ok) {
@@ -18,7 +19,12 @@ export function useApplicationFitScore() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      // Returned (not fire-and-forget) so isPending — and therefore the
+      // "Scoring..." button state — stays true until the applications list
+      // has actually refetched with the new fit score, instead of the
+      // loader disappearing a beat before the real score/description
+      // appears.
+      return queryClient.invalidateQueries({ queryKey: ["applications"] });
     },
   });
 }

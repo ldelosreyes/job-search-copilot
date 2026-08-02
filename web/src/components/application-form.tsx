@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCreateApplication } from "@/hooks/use-applications";
 import { useAnalyzeWithAi } from "@/hooks/use-analyze-with-ai";
 import type { ApplicationSource } from "@job-search-copilot/api/src/schemas/application.ts";
@@ -148,22 +149,37 @@ export function ApplicationForm() {
               disabled={!form.jdText.trim() || analyze.isPending}
               onClick={handleAnalyze}
             >
-              {analyze.isPending ? "Analyzing..." : "Analyze with AI"}
-              <Sparkles className="size-4" aria-hidden="true" />
+              {analyze.isPending ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  Analyze with AI
+                  <Sparkles className="size-4" aria-hidden="true" />
+                </>
+              )}
             </Button>
             {analyze.data && !analyze.data.jdParse.ok && (
               <p className="text-destructive text-sm">{analyze.data.jdParse.error}</p>
             )}
           </div>
 
-          {analyze.data?.fitScore.ok && (
-            <p className="text-sm">
-              Fit score: <strong>{analyze.data.fitScore.data.score}</strong> —{" "}
-              {analyze.data.fitScore.data.rationale}
-            </p>
-          )}
-          {analyze.data && !analyze.data.fitScore.ok && (
-            <p className="text-muted-foreground text-sm">{analyze.data.fitScore.error}</p>
+          {analyze.isPending ? (
+            <Skeleton className="h-4 w-64" role="status" aria-label="Analyzing job description…" />
+          ) : (
+            <>
+              {analyze.data?.fitScore.ok && (
+                <p className="text-sm">
+                  Fit score: <strong>{analyze.data.fitScore.data.score}</strong> —{" "}
+                  {analyze.data.fitScore.data.rationale}
+                </p>
+              )}
+              {analyze.data && !analyze.data.fitScore.ok && (
+                <p className="text-muted-foreground text-sm">{analyze.data.fitScore.error}</p>
+              )}
+            </>
           )}
 
           <Input

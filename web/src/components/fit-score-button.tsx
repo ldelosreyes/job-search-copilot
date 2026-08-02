@@ -1,3 +1,4 @@
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useApplicationFitScore } from "@/hooks/use-application-fit-score";
 import { useResumeStatus } from "@/hooks/use-resume";
@@ -9,10 +10,12 @@ export function FitScoreButton({
   id,
   hasJd,
   hasScore,
+  disabledByBulkScore = false,
 }: {
   id: string;
   hasJd: boolean;
   hasScore: boolean;
+  disabledByBulkScore?: boolean;
 }) {
   const fitScore = useApplicationFitScore();
   const resumeStatus = useResumeStatus();
@@ -25,7 +28,9 @@ export function FitScoreButton({
         ? "Resume availability could not be checked."
         : !resumeStatus.data?.filename
           ? "Upload a resume before scoring fit."
-          : null;
+          : disabledByBulkScore
+            ? "Already up to date — scoring all applications now."
+            : null;
 
   return (
     <div className="grid gap-1">
@@ -41,7 +46,16 @@ export function FitScoreButton({
           disabled={Boolean(disabledReason) || fitScore.isPending}
           onClick={() => fitScore.mutate(id)}
         >
-          {fitScore.isPending ? "Scoring..." : hasScore ? "Re-score" : "Score fit"}
+          {fitScore.isPending ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+              Scoring...
+            </>
+          ) : hasScore ? (
+            "Re-score"
+          ) : (
+            "Score fit"
+          )}
         </Button>
         {disabledReason && (
           <span

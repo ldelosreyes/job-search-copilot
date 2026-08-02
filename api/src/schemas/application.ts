@@ -96,6 +96,13 @@ export const applicationSchema = z.object({
 
 export type Application = z.infer<typeof applicationSchema>;
 
+/**
+ * GET /applications response shape — adds a server-computed staleness flag
+ * (see needsFitScore in lib/fit-score-fingerprint.ts) that isn't a DB column,
+ * so it doesn't belong on applicationSchema itself.
+ */
+export type ApplicationWithFitScoreStatus = Application & { needsFitScore: boolean };
+
 /** Payload accepted when creating a new application — server assigns id/timestamps/fit-score fields. */
 export const createApplicationSchema = applicationSchema.omit({
   id: true,

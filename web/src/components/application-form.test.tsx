@@ -169,6 +169,20 @@ describe("ApplicationForm", () => {
       expect(screen.getByPlaceholderText("Salary max")).toHaveValue(150_000);
     });
 
+    test("shows a loading skeleton in place of the analysis result while pending", () => {
+      mockUseAnalyzeWithAi.mockReturnValue({
+        mutate: analyzeMutate,
+        isPending: true,
+        data: undefined,
+      } as unknown as ReturnType<typeof useAnalyzeWithAi>);
+
+      render(<ApplicationForm />);
+
+      expect(
+        screen.getByRole("status", { name: "Analyzing job description…" }),
+      ).toBeInTheDocument();
+    });
+
     test("renders the fit score and rationale from a successful result", () => {
       mockUseAnalyzeWithAi.mockReturnValue({
         mutate: analyzeMutate,

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ApplicationList } from "./application-list";
 import {
   useApplications,
@@ -18,6 +19,18 @@ vi.mock("@/hooks/use-applications", () => ({
 vi.mock("@/components/fit-score-button", () => ({
   FitScoreButton: () => null,
 }));
+
+// ApplicationCard reads the shared mutation cache (useMutationState) to show
+// a fit-scoring loading state, which requires a real QueryClientProvider even
+// though useApplications itself is mocked above.
+function renderApplicationList() {
+  const queryClient = new QueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ApplicationList />
+    </QueryClientProvider>,
+  );
+}
 
 const application: Application = {
   id: "5ac2d7a3-061c-449f-9e39-aa57f6e9988a",
@@ -40,6 +53,21 @@ const application: Application = {
 const mockUseApplications = vi.mocked(useApplications);
 const mockUseDeleteApplication = vi.mocked(useDeleteApplication);
 const mockUseUpdateApplication = vi.mocked(useUpdateApplication);
+
+describe("ApplicationList loading state", () => {
+  test("shows skeleton cards and an accessible loading status while fetching", () => {
+    mockUseApplications.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    } as unknown as ReturnType<typeof useApplications>);
+
+    const { container } = renderApplicationList();
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading applications…");
+    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+  });
+});
 
 describe("ApplicationList card editing", () => {
   const updateMutate = vi.fn();
@@ -81,7 +109,7 @@ describe("ApplicationList card editing", () => {
 
   test("opens every editable field in a modal from an icon-only edit button", async () => {
     const user = userEvent.setup();
-    render(<ApplicationList />);
+    renderApplicationList();
 
     expect(screen.getByText("Staff Engineer")).toBeInTheDocument();
     expect(screen.getByText(/Acme Co/)).toBeInTheDocument();
@@ -128,7 +156,7 @@ describe("ApplicationList card editing", () => {
       isError: false,
     } as unknown as ReturnType<typeof useApplications>);
 
-    render(<ApplicationList />);
+    renderApplicationList();
 
     const title = screen.getByText("Staff Engineer");
     const titleRow = title.parentElement;
@@ -141,7 +169,7 @@ describe("ApplicationList card editing", () => {
 
   test("uses Notes instead of stage-specific reason fields", async () => {
     const user = userEvent.setup();
-    render(<ApplicationList />);
+    renderApplicationList();
 
     await user.click(screen.getByRole("button", { name: "Edit application" }));
     await user.selectOptions(screen.getByLabelText("Stage"), "rejected");
@@ -167,7 +195,7 @@ describe("ApplicationList card editing", () => {
 
   test("saves all edited fields in one application update", async () => {
     const user = userEvent.setup();
-    render(<ApplicationList />);
+    renderApplicationList();
 
     await user.click(screen.getByRole("button", { name: "Edit application" }));
 
@@ -207,7 +235,7 @@ describe("ApplicationList card editing", () => {
 
   test("shows validation feedback and blocks invalid salary values", async () => {
     const user = userEvent.setup();
-    render(<ApplicationList />);
+    renderApplicationList();
 
     await user.click(screen.getByRole("button", { name: "Edit application" }));
     await user.clear(screen.getByLabelText("Salary minimum"));
@@ -226,7 +254,7 @@ describe("ApplicationList card editing", () => {
     } as unknown as ReturnType<typeof useUpdateApplication>);
 
     const user = userEvent.setup();
-    render(<ApplicationList />);
+    renderApplicationList();
     await user.click(screen.getByRole("button", { name: "Edit application" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("Failed to update application");
@@ -234,7 +262,7 @@ describe("ApplicationList card editing", () => {
 
   test("opens a confirmation dialog from an icon-only card delete button", async () => {
     const user = userEvent.setup();
-    render(<ApplicationList />);
+    renderApplicationList();
 
     const deleteButton = screen.getByRole("button", { name: "Delete application" });
     expect(deleteButton).toHaveAttribute("aria-label", "Delete application");
@@ -259,7 +287,7 @@ describe("ApplicationList card editing", () => {
 
   test("keeps deletion out of editing and returns focus after cancelling deletion", async () => {
     const user = userEvent.setup();
-    render(<ApplicationList />);
+    renderApplicationList();
 
     await user.click(screen.getByRole("button", { name: "Edit application" }));
     const editDialog = screen.getByRole("dialog", { name: "Edit application" });
@@ -290,7 +318,7 @@ describe("ApplicationList card editing", () => {
     } as unknown as ReturnType<typeof useDeleteApplication>);
 
     const user = userEvent.setup();
-    render(<ApplicationList />);
+    renderApplicationList();
     await user.click(screen.getByRole("button", { name: "Delete application" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("Failed to delete application");
@@ -298,7 +326,7 @@ describe("ApplicationList card editing", () => {
 
   test("closes the modal and returns focus to the edit button after cancelling", async () => {
     const user = userEvent.setup();
-    render(<ApplicationList />);
+    renderApplicationList();
 
     await user.click(screen.getByRole("button", { name: "Edit application" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
@@ -310,7 +338,7 @@ describe("ApplicationList card editing", () => {
 
   test("closes the edit modal with Escape", async () => {
     const user = userEvent.setup();
-    render(<ApplicationList />);
+    renderApplicationList();
 
     await user.click(screen.getByRole("button", { name: "Edit application" }));
     await user.keyboard("{Escape}");

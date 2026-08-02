@@ -88,7 +88,22 @@ describe("FitScoreButton", () => {
 
     render(<FitScoreButton id="1" hasJd={true} hasScore={false} />);
 
-    expect(screen.getByRole("button", { name: "Scoring..." })).toBeDisabled();
+    const button = screen.getByRole("button", { name: "Scoring..." });
+    expect(button).toBeDisabled();
+    expect(button.querySelector("svg.animate-spin")).toBeInTheDocument();
+  });
+
+  test("is disabled with an explanatory tooltip when skipped by a bulk score-all run", () => {
+    render(<FitScoreButton id="1" hasJd={true} hasScore={true} disabledByBulkScore={true} />);
+
+    const button = screen.getByRole("button", { name: "Re-score" });
+    expect(button).toBeDisabled();
+    expect(button.querySelector("svg.animate-spin")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("tooltip", {
+        name: "Already up to date — scoring all applications now.",
+      }),
+    ).toBeInTheDocument();
   });
 
   test("shows the error message on failure", () => {
