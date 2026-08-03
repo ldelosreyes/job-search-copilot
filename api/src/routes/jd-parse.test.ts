@@ -52,8 +52,8 @@ describe("POST /jd-parse", () => {
     expect(callChatModelMock).not.toHaveBeenCalled();
   });
 
-  test("rejects a jdText over the 5,000 char cap before ever calling the LLM", async () => {
-    const res = await post({ jdText: "a".repeat(5_001) });
+  test("rejects a jdText over the 8,000 char cap before ever calling the LLM", async () => {
+    const res = await post({ jdText: "a".repeat(8_001) });
 
     expect(res.status).toBe(400);
     expect(callChatModelMock).not.toHaveBeenCalled();

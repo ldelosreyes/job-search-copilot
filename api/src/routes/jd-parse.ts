@@ -8,7 +8,9 @@ import { jdParseJsonSchema, jdParseRequestSchema, jdParseResultSchema } from "..
 const MAX_TOKENS = 500;
 
 const SYSTEM_PROMPT =
-  'Extract structured fields from this job description. salaryMin/salaryMax ' +
+  'Extract structured fields from this job description. If the company name ' +
+  'or role title isn\'t clearly stated, return an empty string for that ' +
+  'field — never a placeholder like "Unknown" or "N/A". salaryMin/salaryMax ' +
   'should be null if no salary is mentioned. Guess the best-fitting source ' +
   'from the enum; default to "other" if there\'s no clear signal.';
 

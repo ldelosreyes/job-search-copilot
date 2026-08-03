@@ -20,7 +20,7 @@ export function envInt(name: string, fallback: number): number {
 // Applies to jdText everywhere it's accepted as AI-route input (POST
 // /jd-parse, POST /fit-score) — the same cap both routes' Zod request
 // schemas already needed independently.
-export const JD_TEXT_MAX_CHARS = envInt("JD_TEXT_MAX_CHARS", 5_000);
+export const JD_TEXT_MAX_CHARS = envInt("JD_TEXT_MAX_CHARS", 8_000);
 
 // Resume text sliced to this length before going into any prompt —
 // extracted PDF/DOCX text has no upper bound otherwise.
