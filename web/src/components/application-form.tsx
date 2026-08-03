@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,12 @@ export function ApplicationForm() {
   const [error, setError] = useState<string | null>(null);
   const createApplication = useCreateApplication();
   const analyze = useAnalyzeWithAi();
+  // The JD text of the most recent successful analysis — lets us tell "the
+  // user already typed something, don't clobber it" (first analysis, or a
+  // retry of the same JD) apart from "a different JD was just analyzed, its
+  // stale AI-filled values should clear like they used to" (a new JD pasted
+  // over an old one without submitting first).
+  const analyzedJdTextRef = useRef<string | null>(null);
 
   function update<K extends keyof typeof emptyForm>(key: K, value: (typeof emptyForm)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -45,18 +51,31 @@ export function ApplicationForm() {
   function handleAnalyze() {
     const jdText = form.jdText.trim();
     if (!jdText) return;
+    const preserveOnEmpty =
+      analyzedJdTextRef.current === null || analyzedJdTextRef.current === jdText;
     analyze.mutate(jdText, {
       onSuccess: (result) => {
         if (!result.jdParse.ok) return;
         const parsed = result.jdParse.data;
         setForm((prev) => ({
           ...prev,
-          company: parsed.company,
-          roleTitle: parsed.roleTitle,
+          company: parsed.company.trim() || (preserveOnEmpty ? prev.company : ""),
+          roleTitle: parsed.roleTitle.trim() || (preserveOnEmpty ? prev.roleTitle : ""),
           source: parsed.source,
-          salaryMin: parsed.salaryMin != null ? String(parsed.salaryMin) : "",
-          salaryMax: parsed.salaryMax != null ? String(parsed.salaryMax) : "",
+          salaryMin:
+            parsed.salaryMin != null
+              ? String(parsed.salaryMin)
+              : preserveOnEmpty
+                ? prev.salaryMin
+                : "",
+          salaryMax:
+            parsed.salaryMax != null
+              ? String(parsed.salaryMax)
+              : preserveOnEmpty
+                ? prev.salaryMax
+                : "",
         }));
+        analyzedJdTextRef.current = jdText;
       },
     });
   }

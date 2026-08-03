@@ -169,6 +169,88 @@ describe("ApplicationForm", () => {
       expect(screen.getByPlaceholderText("Salary max")).toHaveValue(150_000);
     });
 
+    test("keeps the user's typed company when the AI result has no company (e.g. an unnamed recruiter posting)", async () => {
+      analyzeMutate.mockImplementation((_jdText, { onSuccess }) => {
+        onSuccess({
+          jdParse: {
+            ok: true,
+            data: {
+              company: "",
+              roleTitle: "Staff Engineer",
+              source: "recruiter",
+              salaryMin: null,
+              salaryMax: null,
+            },
+          },
+          fitScore: { ok: true, data: { score: 82, rationale: "Strong overlap." } },
+        });
+      });
+      const user = userEvent.setup();
+      render(<ApplicationForm />);
+
+      await user.type(screen.getByPlaceholderText("Company"), "Acme Co");
+      await user.type(screen.getByPlaceholderText("Paste the JD (optional)"), "Some JD text");
+      await user.click(screen.getByRole("button", { name: "Analyze with AI" }));
+
+      await waitFor(() =>
+        expect(screen.getByPlaceholderText("Role title")).toHaveValue("Staff Engineer"),
+      );
+      expect(screen.getByPlaceholderText("Company")).toHaveValue("Acme Co");
+    });
+
+    test("clears stale AI-filled fields when a second, different JD is analyzed and comes back empty", async () => {
+      let onSuccess: (result: unknown) => void = () => {};
+      analyzeMutate.mockImplementation((_jdText, opts) => {
+        onSuccess = opts.onSuccess;
+      });
+      const user = userEvent.setup();
+      render(<ApplicationForm />);
+
+      const jdTextarea = screen.getByPlaceholderText("Paste the JD (optional)");
+
+      // First analysis: fully populates the form from JD #1.
+      await user.type(jdTextarea, "JD for Acme");
+      await user.click(screen.getByRole("button", { name: "Analyze with AI" }));
+      onSuccess({
+        jdParse: {
+          ok: true,
+          data: {
+            company: "Acme Co",
+            roleTitle: "Staff Engineer",
+            source: "referral",
+            salaryMin: 100_000,
+            salaryMax: 150_000,
+          },
+        },
+        fitScore: { ok: true, data: { score: 82, rationale: "Strong overlap." } },
+      });
+      await waitFor(() => expect(screen.getByPlaceholderText("Company")).toHaveValue("Acme Co"));
+
+      // User pastes a different JD over the first one and re-analyzes, without
+      // submitting — the new posting doesn't name a company or salary.
+      await user.clear(jdTextarea);
+      await user.type(jdTextarea, "JD for a different, unnamed company");
+      await user.click(screen.getByRole("button", { name: "Analyze with AI" }));
+      onSuccess({
+        jdParse: {
+          ok: true,
+          data: {
+            company: "",
+            roleTitle: "",
+            source: "recruiter",
+            salaryMin: null,
+            salaryMax: null,
+          },
+        },
+        fitScore: { ok: true, data: { score: 40, rationale: "Weak overlap." } },
+      });
+
+      await waitFor(() => expect(screen.getByPlaceholderText("Company")).toHaveValue(""));
+      expect(screen.getByPlaceholderText("Role title")).toHaveValue("");
+      expect(screen.getByPlaceholderText("Salary min")).toHaveValue(null);
+      expect(screen.getByPlaceholderText("Salary max")).toHaveValue(null);
+    });
+
     test("shows a loading skeleton in place of the analysis result while pending", () => {
       mockUseAnalyzeWithAi.mockReturnValue({
         mutate: analyzeMutate,
